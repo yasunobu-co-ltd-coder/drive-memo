@@ -239,7 +239,6 @@ export default function Page() {
       {/* コンテンツ */}
       {activeTab === 'memo' && (
         <MemoTab
-          users={users}
           currentUserId={session.userId}
           deviceToken={session.deviceToken}
           onCreated={onMemoCreated}
@@ -248,7 +247,6 @@ export default function Page() {
 
       {activeTab === 'view' && (
         <ViewTab
-          users={users}
           currentUserId={session.userId}
           deviceToken={session.deviceToken}
           refreshSignal={refreshSignal}

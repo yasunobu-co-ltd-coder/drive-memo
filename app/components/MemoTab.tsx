@@ -1,37 +1,58 @@
 'use client';
-import { useState } from 'react';
-import { VoiceInput } from './VoiceInput';
-import { User, Importance, AssignmentType, DealStatus } from '@/lib/types';
-
-const IMP_LABEL: Record<Importance, string> = { high: '高', mid: '中', low: '低' };
+import { useState, useRef, useCallback } from 'react';
+import { Mic, MicOff } from 'lucide-react';
+import { parseVoiceText } from '@/lib/parseVoice';
 
 type Props = {
-  users: User[];
   currentUserId: string;
   deviceToken: string;
   onCreated: () => void;
 };
 
-const INITIAL = {
-  client_name: '',
-  contact_person: '',
-  memo: '',
-  due_date: '',
-  importance: 'mid' as Importance,
-  assignment_type: '任せる' as AssignmentType,
-  assignee: '',
-  status: '未着手' as DealStatus,
-};
+const INITIAL = { client_name: '', contact_person: '', memo: '', due_date: '' };
 
-export function MemoTab({ users, currentUserId, deviceToken, onCreated }: Props) {
-  const [form, setForm]       = useState(INITIAL);
-  const [saving, setSaving]   = useState(false);
-  const [error, setError]     = useState('');
-  const [success, setSuccess] = useState(false);
+export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
+  const [form, setForm]           = useState(INITIAL);
+  const [saving, setSaving]       = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [voiceText, setVoiceText] = useState('');
+  const [error, setError]         = useState('');
+  const [success, setSuccess]     = useState(false);
+  const recRef                    = useRef<any>(null);
 
-  function setField<K extends keyof typeof form>(k: K, v: typeof form[K]) {
+  function setField(k: keyof typeof form, v: string) {
     setForm(f => ({ ...f, [k]: v }));
   }
+
+  const startVoice = useCallback(() => {
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (!SR) { alert('Chrome または Safari をお使いください'); return; }
+    const r = new SR();
+    r.lang = 'ja-JP';
+    r.interimResults = false;
+    r.maxAlternatives = 1;
+    recRef.current = r;
+    r.onstart  = () => setRecording(true);
+    r.onend    = () => setRecording(false);
+    r.onerror  = () => setRecording(false);
+    r.onresult = (e: any) => {
+      const text = e.results[0][0].transcript;
+      setVoiceText(text);
+      const parsed = parseVoiceText(text);
+      setForm(f => ({
+        client_name:    parsed.client_name    || f.client_name,
+        contact_person: parsed.contact_person || f.contact_person,
+        memo:           parsed.memo           || f.memo,
+        due_date:       parsed.due_date       || f.due_date,
+      }));
+    };
+    r.start();
+  }, []);
+
+  const stopVoice = useCallback(() => {
+    recRef.current?.stop();
+    setRecording(false);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,147 +64,107 @@ export function MemoTab({ users, currentUserId, deviceToken, onCreated }: Props)
     try {
       const res = await fetch('/api/deals', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-device-token': deviceToken,
-        },
+        headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
         body: JSON.stringify({
           ...form,
-          due_date: form.due_date || null,
-          assignee: form.assignee || null,
+          due_date:        form.due_date || null,
+          importance:      'mid',
+          assignment_type: '自分で',
+          assignee:        currentUserId,
+          status:          '未着手',
         }),
       });
-      if (!res.ok) {
-        const d = await res.json();
-        setError(d.error ?? '登録に失敗しました');
-        return;
-      }
+      if (!res.ok) { const d = await res.json(); setError(d.error ?? '登録失敗'); return; }
       setForm(INITIAL);
+      setVoiceText('');
       setSuccess(true);
-      setTimeout(() => setSuccess(false), 2000);
+      setTimeout(() => setSuccess(false), 2500);
       onCreated();
-    } catch {
-      setError('通信エラーが発生しました');
-    } finally {
-      setSaving(false);
-    }
+    } catch { setError('通信エラーが発生しました'); }
+    finally { setSaving(false); }
   }
 
   return (
-    <div className="content">
+    <div style={{ padding: '28px 22px', flex: 1, overflowY: 'auto' }}>
+
+      {/* 大きなマイクボタン */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 36 }}>
+        <button
+          type="button"
+          onPointerDown={startVoice}
+          onPointerUp={stopVoice}
+          onPointerLeave={stopVoice}
+          style={{
+            width: 96, height: 96,
+            borderRadius: '50%',
+            border: 'none',
+            background: recording ? '#ef4444' : '#2563eb',
+            color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: recording
+              ? '0 0 0 14px rgba(239,68,68,.18), 0 6px 20px rgba(239,68,68,.4)'
+              : '0 6px 24px rgba(37,99,235,.38)',
+            cursor: 'pointer',
+            transition: 'background .2s, box-shadow .2s',
+          }}
+        >
+          {recording ? <MicOff size={40} /> : <Mic size={40} />}
+        </button>
+        <div style={{ marginTop: 14, fontSize: 16, color: '#94a3b8', fontWeight: 600 }}>
+          {recording ? '録音中… 離して確定' : '長押しで音声入力'}
+        </div>
+        {voiceText && (
+          <div style={{
+            marginTop: 14, padding: '12px 16px',
+            background: '#eff6ff', borderRadius: 12,
+            fontSize: 15, color: '#1e40af', maxWidth: '100%', textAlign: 'center',
+            lineHeight: 1.6,
+          }}>
+            「{voiceText}」
+          </div>
+        )}
+      </div>
+
       {error   && <div className="error-msg">{error}</div>}
       {success && (
         <div style={{
           background: '#d1fae5', color: '#065f46',
-          padding: '14px 16px', borderRadius: 12, marginBottom: 16,
-          fontWeight: 600, fontSize: 16,
-        }}>
-          ✅ 登録しました
-        </div>
+          padding: '18px', borderRadius: 14, marginBottom: 24,
+          fontWeight: 700, fontSize: 20, textAlign: 'center',
+        }}>✅ 登録しました</div>
       )}
 
       <form onSubmit={handleSubmit}>
-        {/* 会社名 */}
         <div className="form-group">
           <label className="input-label">会社名</label>
-          <VoiceInput
+          <input
+            className="input-field"
             value={form.client_name}
-            onChange={v => setField('client_name', v)}
+            onChange={e => setField('client_name', e.target.value)}
             placeholder="株式会社〇〇"
-            withDict
           />
         </div>
 
-        {/* 担当者 */}
         <div className="form-group">
           <label className="input-label">担当者</label>
-          <VoiceInput
+          <input
+            className="input-field"
             value={form.contact_person}
-            onChange={v => setField('contact_person', v)}
+            onChange={e => setField('contact_person', e.target.value)}
             placeholder="山田 様"
           />
         </div>
 
-        {/* メモ内容 */}
         <div className="form-group">
           <label className="input-label">メモ</label>
-          <div className="voice-row">
-            <textarea
-              className="input-field"
-              value={form.memo}
-              onChange={e => setField('memo', e.target.value)}
-              placeholder="案件の内容、連絡事項など..."
-            />
-          </div>
-        </div>
-
-        {/* 優先度 */}
-        <div className="form-group">
-          <label className="input-label">優先度</label>
-          <div className="segment-group">
-            {(['high', 'mid', 'low'] as Importance[]).map(imp => (
-              <button
-                key={imp}
-                type="button"
-                className={`segment-btn ${form.importance === imp ? 'active' : ''}`}
-                onClick={() => setField('importance', imp)}
-              >
-                {IMP_LABEL[imp]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ステータス */}
-        <div className="form-group">
-          <label className="input-label">ステータス</label>
-          <div className="segment-group">
-            {(['未着手', '対応中'] as DealStatus[]).map(s => (
-              <button
-                key={s}
-                type="button"
-                className={`segment-btn ${form.status === s ? 'active' : ''}`}
-                onClick={() => setField('status', s)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 担当区分 */}
-        <div className="form-group">
-          <label className="input-label">誰がやる？</label>
-          <div className="segment-group">
-            {(['任せる', '自分で'] as AssignmentType[]).map(a => (
-              <button
-                key={a}
-                type="button"
-                className={`segment-btn ${form.assignment_type === a ? 'active' : ''}`}
-                onClick={() => setField('assignment_type', a)}
-              >
-                {a}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 担当者（ユーザー） */}
-        <div className="form-group">
-          <label className="input-label">担当 → 誰が</label>
-          <select
+          <textarea
             className="input-field"
-            value={form.assignee}
-            onChange={e => setField('assignee', e.target.value)}
-          >
-            <option value="">未割当</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
+            value={form.memo}
+            onChange={e => setField('memo', e.target.value)}
+            placeholder="案件の内容、連絡事項など..."
+          />
         </div>
 
-        {/* 期日 */}
         <div className="form-group">
           <label className="input-label">期日</label>
           <input
