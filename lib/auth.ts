@@ -30,19 +30,22 @@ export async function validateRequest(request: Request): Promise<DeviceSession |
 export async function validateToken(token: string): Promise<DeviceSession | null> {
   const db = createServerClient();
 
-  const { data, error } = await db
+  // 1. デバイス登録を取得
+  const { data: device, error } = await db
     .from('device_registrations')
-    .select(`
-      device_token,
-      company_id,
-      last_user_id,
-      companies ( name ),
-      users!device_registrations_last_user_id_fkey ( name )
-    `)
+    .select('device_token, company_id, last_user_id')
     .eq('device_token', token)
     .single();
 
-  if (error || !data) return null;
+  if (error || !device || !device.last_user_id) return null;
+
+  // 2. 会社名とユーザー名を個別に取得
+  const [companyRes, userRes] = await Promise.all([
+    db.from('companies').select('name').eq('id', device.company_id).single(),
+    db.from('users').select('name').eq('id', device.last_user_id).single(),
+  ]);
+
+  if (!companyRes.data || !userRes.data) return null;
 
   // last_active_at を更新（非同期・エラーは無視）
   db.from('device_registrations')
@@ -50,17 +53,12 @@ export async function validateToken(token: string): Promise<DeviceSession | null
     .eq('device_token', token)
     .then(() => {});
 
-  const company = data.companies as unknown as { name: string } | null;
-  const user    = data.users    as unknown as { name: string } | null;
-
-  if (!data.last_user_id || !user || !company) return null;
-
   return {
     deviceToken:  token,
-    companyId:    data.company_id,
-    companyName:  company.name,
-    userId:       data.last_user_id,
-    userName:     user.name,
+    companyId:    device.company_id,
+    companyName:  companyRes.data.name,
+    userId:       device.last_user_id,
+    userName:     userRes.data.name,
   };
 }
 
