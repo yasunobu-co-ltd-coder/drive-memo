@@ -19,6 +19,7 @@ build/
 
 # secrets (ローカルのみ・GitHub非公開)
 SECRETS.md
+sql/
 
 # misc
 .DS_Store
