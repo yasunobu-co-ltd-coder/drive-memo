@@ -49,6 +49,9 @@ export function AuthScreen({ onSuccess }: Props) {
       <div className="login-card">
         <div className="login-logo"><ClipboardList size={48} color="#2563eb" /></div>
         <div className="login-title">drive</div>
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#94a3b8', marginBottom: 4, fontFamily: 'monospace' }}>
+          {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev'}
+        </div>
         <div className="login-sub">会社コードでログイン</div>
 
         {error && <div className="error-msg">{error}</div>}
