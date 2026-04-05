@@ -17,6 +17,9 @@ build/
 .env.test.local
 .env.production.local
 
+# secrets (ローカルのみ・GitHub非公開)
+SECRETS.md
+
 # misc
 .DS_Store
 *.pem

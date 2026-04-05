@@ -2,7 +2,7 @@
 // 管理者用：会社 + 初期ユーザーを登録する
 // ADMIN_SECRET ヘッダーで保護
 import { NextRequest } from 'next/server';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '@/lib/password';
 import { createServerClient } from '@/lib/supabase-server';
 
 export async function POST(req: NextRequest) {
@@ -12,14 +12,13 @@ export async function POST(req: NextRequest) {
   }
 
   const { code, name, password, users } = await req.json();
-  // users: [{ name: '松田', sort_order: 1 }, ...]
 
   if (!code || !name || !password) {
     return Response.json({ error: 'code / name / password は必須です' }, { status: 400 });
   }
 
   const db = createServerClient();
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = hashPassword(password);
 
   const { data: company, error: companyError } = await db
     .from('companies')
