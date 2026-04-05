@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { User as UserIcon } from 'lucide-react';
 import { User } from '@/lib/types';
 
 type Props = {
@@ -40,7 +41,7 @@ export function UserSelect({ users, companyName, deviceToken, companyId, onSelec
   return (
     <div className="login-screen">
       <div className="login-card" style={{ maxWidth: 400 }}>
-        <div className="login-logo">👤</div>
+        <div className="login-logo"><UserIcon size={48} color="#2563eb" /></div>
         <div className="login-title" style={{ fontSize: 22 }}>担当者を選択</div>
         <div className="login-sub">{companyName}</div>
 

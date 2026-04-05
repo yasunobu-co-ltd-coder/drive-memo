@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { ClipboardList } from 'lucide-react';
 import { User } from '@/lib/types';
 
 type AuthResult = {
@@ -46,7 +47,7 @@ export function AuthScreen({ onSuccess }: Props) {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <div className="login-logo">📋</div>
+        <div className="login-logo"><ClipboardList size={48} color="#2563eb" /></div>
         <div className="login-title">drive</div>
         <div className="login-sub">会社コードでログイン</div>
 

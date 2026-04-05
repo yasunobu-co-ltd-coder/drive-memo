@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { LogOut } from 'lucide-react';
 import { AuthScreen }   from './components/AuthScreen';
 import { UserSelect }   from './components/UserSelect';
 import { MemoTab }      from './components/MemoTab';
@@ -190,7 +191,7 @@ export default function Page() {
               cursor: 'pointer',
             }}
           >
-            🚪
+            <LogOut size={16} />
           </button>
         </div>
       </header>

@@ -1,4 +1,5 @@
 'use client';
+import { PenLine, List } from 'lucide-react';
 
 type Tab = 'memo' | 'view';
 
@@ -14,14 +15,14 @@ export function Footer({ active, onChange }: Props) {
         className={`nav-item ${active === 'memo' ? 'active' : ''}`}
         onClick={() => onChange('memo')}
       >
-        <span className="nav-icon">✏️</span>
+        <PenLine size={26} />
         メモ
       </button>
       <button
         className={`nav-item ${active === 'view' ? 'active' : ''}`}
         onClick={() => onChange('view')}
       >
-        <span className="nav-icon">📋</span>
+        <List size={26} />
         閲覧
       </button>
     </nav>
