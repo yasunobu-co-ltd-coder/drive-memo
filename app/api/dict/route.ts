@@ -3,8 +3,11 @@ import { NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/supabase-server';
 
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get('q') ?? '';
-  if (q.length < 1) return Response.json({ results: [] });
+  const raw = req.nextUrl.searchParams.get('q') ?? '';
+  if (raw.length < 1) return Response.json({ results: [] });
+
+  // 特殊文字をエスケープしてSQLインジェクションを防止
+  const q = raw.replace(/[%_\\]/g, c => `\\${c}`);
 
   const db = createServerClient();
 

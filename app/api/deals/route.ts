@@ -20,7 +20,6 @@ export async function GET(req: NextRequest) {
     .from('deals')
     .select(DEAL_SELECT)
     .eq('company_id', session.companyId)
-    .neq('status', 'done')
     .order('created_at', { ascending: false })
     .limit(300);
 

@@ -136,8 +136,10 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label className="input-label">会社名</label>
+          <label className="input-label" htmlFor="memo-client">会社名</label>
           <input
+            id="memo-client"
+            name="client_name"
             className="input-field"
             value={form.client_name}
             onChange={e => setField('client_name', e.target.value)}
@@ -146,8 +148,10 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         </div>
 
         <div className="form-group">
-          <label className="input-label">担当者</label>
+          <label className="input-label" htmlFor="memo-contact">担当者</label>
           <input
+            id="memo-contact"
+            name="contact_person"
             className="input-field"
             value={form.contact_person}
             onChange={e => setField('contact_person', e.target.value)}
@@ -156,8 +160,10 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         </div>
 
         <div className="form-group">
-          <label className="input-label">メモ</label>
+          <label className="input-label" htmlFor="memo-text">メモ</label>
           <textarea
+            id="memo-text"
+            name="memo"
             className="input-field"
             value={form.memo}
             onChange={e => setField('memo', e.target.value)}
@@ -166,8 +172,10 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         </div>
 
         <div className="form-group">
-          <label className="input-label">期日</label>
+          <label className="input-label" htmlFor="memo-due">期日</label>
           <input
+            id="memo-due"
+            name="due_date"
             className="input-field"
             type="date"
             value={form.due_date}

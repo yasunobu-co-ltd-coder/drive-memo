@@ -56,8 +56,10 @@ export function AuthScreen({ onSuccess }: Props) {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="input-label">会社コード</label>
+            <label className="input-label" htmlFor="company-code">会社コード</label>
             <input
+              id="company-code"
+              name="company_code"
               className="input-field"
               type="text"
               value={code}
@@ -70,8 +72,10 @@ export function AuthScreen({ onSuccess }: Props) {
           </div>
 
           <div className="form-group">
-            <label className="input-label">パスワード</label>
+            <label className="input-label" htmlFor="company-password">パスワード</label>
             <input
+              id="company-password"
+              name="password"
               className="input-field"
               type="password"
               value={pass}
