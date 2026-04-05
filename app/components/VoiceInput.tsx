@@ -15,7 +15,8 @@ type Props = {
 export function VoiceInput({ value, onChange, placeholder, withDict = false, inputClassName }: Props) {
   const [recording, setRecording]   = useState(false);
   const [suggests, setSuggests]     = useState<DictResult[]>([]);
-  const recognitionRef              = useRef<SpeechRecognition | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef              = useRef<any>(null);
 
   const fetchSuggests = useCallback(async (q: string) => {
     if (!withDict || q.length < 1) return setSuggests([]);
@@ -30,7 +31,7 @@ export function VoiceInput({ value, onChange, placeholder, withDict = false, inp
       alert('このブラウザは音声入力に対応していません。Chrome または Safari をご利用ください。');
       return;
     }
-    const r = new SR() as SpeechRecognition;
+    const r = new SR();
     r.lang = 'ja-JP';
     r.interimResults = false;
     r.maxAlternatives = 1;
@@ -39,7 +40,7 @@ export function VoiceInput({ value, onChange, placeholder, withDict = false, inp
     r.onstart  = () => setRecording(true);
     r.onend    = () => setRecording(false);
     r.onerror  = () => setRecording(false);
-    r.onresult = (e: SpeechRecognitionEvent) => {
+    r.onresult = (e: any) => {
       const text = e.results[0][0].transcript;
       onChange(text);
       fetchSuggests(text);
