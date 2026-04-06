@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Pencil, Check, Undo2, Trash2, X } from 'lucide-react';
 import { Deal } from '@/lib/types';
 
 type Filter = 'active' | 'done';
@@ -25,6 +25,8 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
   const [expanded, setExpanded] = useState<string | null>(null);
   const pullStartY              = useRef(0);
   const [pulling, setPulling]   = useState(false);
+  const [editing, setEditing]   = useState<Deal | null>(null);
+  const [editForm, setEditForm] = useState({ client_name: '', contact_person: '', memo: '', due_date: '' });
 
   const fetchDeals = useCallback(async () => {
     setLoading(true);
@@ -59,6 +61,31 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
     if (!confirm('削除しますか？')) return;
     const res = await fetch(`/api/deals/${id}`, { method: 'DELETE', headers: { 'x-device-token': deviceToken } });
     if (res.ok) setDeals(ds => ds.filter(d => d.id !== id));
+  }
+
+  function startEdit(deal: Deal) {
+    setEditing(deal);
+    setEditForm({
+      client_name:    deal.client_name ?? '',
+      contact_person: deal.contact_person ?? '',
+      memo:           deal.memo ?? '',
+      due_date:       deal.due_date ?? '',
+    });
+    setExpanded(null);
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    const res = await fetch(`/api/deals/${editing.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
+      body: JSON.stringify(editForm),
+    });
+    if (res.ok) {
+      const { deal: u } = await res.json();
+      setDeals(ds => ds.map(d => d.id === editing.id ? u : d));
+      setEditing(null);
+    }
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -196,38 +223,112 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
               {isOpen && (
                 <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
                   {filter === 'active' ? (
-                    <button
-                      onClick={e => { e.stopPropagation(); updateStatus(deal.id, 'done'); }}
-                      style={{
-                        flex: 1, padding: '15px', borderRadius: 14,
-                        border: 'none', background: '#10b981', color: '#fff',
-                        fontWeight: 700, fontSize: 18, cursor: 'pointer',
-                      }}
-                    >✅ 完了にする</button>
+                    <>
+                      <button
+                        onClick={e => { e.stopPropagation(); updateStatus(deal.id, 'done'); }}
+                        style={{
+                          flex: 1, padding: '15px', borderRadius: 14,
+                          border: 'none', background: '#10b981', color: '#fff',
+                          fontWeight: 700, fontSize: 18, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}
+                      ><Check size={20} /> 完了</button>
+                      <button
+                        onClick={e => { e.stopPropagation(); startEdit(deal); }}
+                        style={{
+                          padding: '15px 18px', borderRadius: 14,
+                          border: '1.5px solid #e2e8f0', background: '#fff',
+                          color: '#2563eb', fontWeight: 700, fontSize: 18, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}
+                      ><Pencil size={18} /> 編集</button>
+                    </>
                   ) : (
-                    <button
-                      onClick={e => { e.stopPropagation(); updateStatus(deal.id, '未着手'); }}
-                      style={{
-                        flex: 1, padding: '15px', borderRadius: 14,
-                        border: 'none', background: '#2563eb', color: '#fff',
-                        fontWeight: 700, fontSize: 18, cursor: 'pointer',
-                      }}
-                    >↩ 対応中に戻す</button>
+                    <>
+                      <button
+                        onClick={e => { e.stopPropagation(); updateStatus(deal.id, '未着手'); }}
+                        style={{
+                          flex: 1, padding: '15px', borderRadius: 14,
+                          border: 'none', background: '#2563eb', color: '#fff',
+                          fontWeight: 700, fontSize: 18, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}
+                      ><Undo2 size={20} /> 対応中に戻す</button>
+                      <button
+                        onClick={e => { e.stopPropagation(); deleteDeal(deal.id); }}
+                        style={{
+                          padding: '15px 18px', borderRadius: 14,
+                          border: '1.5px solid #fca5a5', background: '#fff',
+                          color: '#ef4444', fontWeight: 700, fontSize: 18, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}
+                      ><Trash2 size={18} /> 削除</button>
+                    </>
                   )}
-                  <button
-                    onClick={e => { e.stopPropagation(); deleteDeal(deal.id); }}
-                    style={{
-                      padding: '15px 18px', borderRadius: 14,
-                      border: '1.5px solid #fca5a5', background: '#fff',
-                      color: '#ef4444', fontWeight: 700, fontSize: 18, cursor: 'pointer',
-                    }}
-                  >削除</button>
                 </div>
               )}
             </div>
           );
         })}
       </div>
+
+      {/* 編集モーダル */}
+      {editing && (
+        <div className="modal-overlay" onClick={() => setEditing(null)}>
+          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>案件を編集</div>
+              <button onClick={() => setEditing(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
+                <X size={24} />
+              </button>
+            </div>
+
+            <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>会社名</label>
+            <input
+              className="input-field"
+              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14 }}
+              value={editForm.client_name}
+              onChange={e => setEditForm(f => ({ ...f, client_name: e.target.value }))}
+            />
+
+            <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>担当者</label>
+            <input
+              className="input-field"
+              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14 }}
+              value={editForm.contact_person}
+              onChange={e => setEditForm(f => ({ ...f, contact_person: e.target.value }))}
+            />
+
+            <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>メモ</label>
+            <textarea
+              className="input-field"
+              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14, minHeight: 120, resize: 'vertical' }}
+              value={editForm.memo}
+              onChange={e => setEditForm(f => ({ ...f, memo: e.target.value }))}
+            />
+
+            <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>期日</label>
+            <input
+              className="input-field"
+              type="date"
+              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 20 }}
+              value={editForm.due_date}
+              onChange={e => setEditForm(f => ({ ...f, due_date: e.target.value }))}
+            />
+
+            <button
+              onClick={saveEdit}
+              style={{
+                width: '100%', padding: '15px', borderRadius: 14,
+                border: 'none', background: '#2563eb', color: '#fff',
+                fontWeight: 700, fontSize: 18, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            ><Check size={20} /> 保存</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

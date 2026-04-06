@@ -32,6 +32,8 @@ export default function Page() {
   const [addUserName, setAddUserName]       = useState('');
   const [calConnected, setCalConnected]     = useState<boolean | null>(null);
   const [calLoading, setCalLoading]         = useState(false);
+  const [syncing, setSyncing]               = useState(false);
+  const [syncResult, setSyncResult]         = useState('');
 
   // ─── ヘッダーの文字サイズ自動調整（hooks は早期returnの前に置く） ───
   const badgeRef = useRef<HTMLSpanElement>(null);
@@ -237,6 +239,28 @@ export default function Page() {
     setCalConnected(false);
   }
 
+  async function handleSyncCalendar() {
+    if (!session) return;
+    setSyncing(true);
+    setSyncResult('');
+    try {
+      const res = await fetch('/api/deals/sync-calendar', {
+        method: 'POST',
+        headers: { 'x-device-token': session.deviceToken },
+      });
+      if (res.ok) {
+        const { synced, total } = await res.json();
+        setSyncResult(`${synced}/${total}件をカレンダーに登録しました`);
+      } else {
+        setSyncResult('同期に失敗しました');
+      }
+    } catch {
+      setSyncResult('通信エラー');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   // ───────────────────────────────────────
   // メモ登録後にリストを更新
   // ───────────────────────────────────────
@@ -390,16 +414,31 @@ export default function Page() {
               {calConnected === null ? (
                 <div style={{ fontSize: 14, color: '#94a3b8' }}>確認中...</div>
               ) : calConnected ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 14, color: '#10b981', fontWeight: 600 }}>連携中</span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <span style={{ fontSize: 14, color: '#10b981', fontWeight: 600 }}>連携中</span>
+                    <button
+                      onClick={handleCalendarDisconnect}
+                      style={{
+                        padding: '8px 16px', borderRadius: 10,
+                        border: '1.5px solid #fca5a5', background: '#fff',
+                        color: '#ef4444', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                      }}
+                    >解除</button>
+                  </div>
                   <button
-                    onClick={handleCalendarDisconnect}
+                    onClick={handleSyncCalendar}
+                    disabled={syncing}
                     style={{
-                      padding: '8px 16px', borderRadius: 10,
-                      border: '1.5px solid #fca5a5', background: '#fff',
-                      color: '#ef4444', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                      padding: '10px 16px', borderRadius: 10,
+                      border: '1.5px solid #e2e8f0', background: '#fff',
+                      color: '#334155', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                      opacity: syncing ? 0.6 : 1,
                     }}
-                  >解除</button>
+                  >{syncing ? '同期中...' : '既存メモをカレンダーに一括登録'}</button>
+                  {syncResult && (
+                    <div style={{ fontSize: 13, color: '#10b981', marginTop: 6 }}>{syncResult}</div>
+                  )}
                 </div>
               ) : (
                 <button
