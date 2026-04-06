@@ -26,20 +26,22 @@ export async function validateRequest(request: Request): Promise<DeviceSession |
 
 /**
  * device_token を検証してセッション情報を返す。
+ * 1クエリ + 1 fire-and-forget で処理（最小2 DB round-trip）
  */
 export async function validateToken(token: string): Promise<DeviceSession | null> {
   const db = createServerClient();
 
-  // 1. デバイス登録を取得
+  // デバイス情報・会社名・ユーザー名を1回のRPCで取得できないので、
+  // device → (company + user) を並列で取得する。
+  // ただし device がなければ後続不要なので、先に device を取得する。
   const { data: device, error } = await db
     .from('device_registrations')
-    .select('device_token, company_id, last_user_id')
+    .select('company_id, last_user_id')
     .eq('device_token', token)
     .single();
 
-  if (error || !device || !device.last_user_id) return null;
+  if (error || !device?.last_user_id) return null;
 
-  // 2. 会社名とユーザー名を個別に取得
   const [companyRes, userRes] = await Promise.all([
     db.from('companies').select('name').eq('id', device.company_id).single(),
     db.from('users').select('name').eq('id', device.last_user_id).single(),
@@ -47,7 +49,7 @@ export async function validateToken(token: string): Promise<DeviceSession | null
 
   if (!companyRes.data || !userRes.data) return null;
 
-  // last_active_at を更新（非同期・エラーは無視）
+  // last_active_at を非同期更新（レスポンスを待たない）
   db.from('device_registrations')
     .update({ last_active_at: new Date().toISOString() })
     .eq('device_token', token)

@@ -6,7 +6,6 @@ import { Deal } from '@/lib/types';
 type Filter = 'active' | 'done';
 
 type Props = {
-  currentUserId: string;
   deviceToken: string;
   refreshSignal: number;
   onSwitchUser: () => void;
@@ -19,7 +18,7 @@ function fmtDate(d: string | null) {
   return `${m}/${day}`;
 }
 
-export function ViewTab({ currentUserId, deviceToken, refreshSignal, onSwitchUser, currentUserName }: Props) {
+export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserName }: Props) {
   const [deals, setDeals]       = useState<Deal[]>([]);
   const [loading, setLoading]   = useState(true);
   const [filter, setFilter]     = useState<Filter>('active');
@@ -47,24 +46,11 @@ export function ViewTab({ currentUserId, deviceToken, refreshSignal, onSwitchUse
     }
   }
 
-  async function markDone(id: string) {
-    const deal = deals.find(d => d.id === id);
-    if (!deal) return;
+  async function updateStatus(id: string, status: string) {
     const res = await fetch(`/api/deals/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
-      body: JSON.stringify({ ...deal, due_date: deal.due_date || null, assignee: deal.assignee || null, status: 'done' }),
-    });
-    if (res.ok) { const { deal: u } = await res.json(); setDeals(ds => ds.map(d => d.id === id ? u : d)); setExpanded(null); }
-  }
-
-  async function markActive(id: string) {
-    const deal = deals.find(d => d.id === id);
-    if (!deal) return;
-    const res = await fetch(`/api/deals/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
-      body: JSON.stringify({ ...deal, due_date: deal.due_date || null, assignee: deal.assignee || null, status: '未着手' }),
+      body: JSON.stringify({ status }),
     });
     if (res.ok) { const { deal: u } = await res.json(); setDeals(ds => ds.map(d => d.id === id ? u : d)); setExpanded(null); }
   }
@@ -77,8 +63,8 @@ export function ViewTab({ currentUserId, deviceToken, refreshSignal, onSwitchUse
 
   const today = new Date().toISOString().slice(0, 10);
 
+  // サーバー側で自分の案件のみ返すのでユーザーフィルタ不要
   const filtered = deals
-    .filter(d => d.assignee === currentUserId || d.created_by === currentUserId)
     .filter(d => filter === 'done' ? d.status === 'done' : d.status !== 'done')
     .sort((a, b) => {
       if (!a.due_date && !b.due_date) return 0;
@@ -206,7 +192,7 @@ export function ViewTab({ currentUserId, deviceToken, refreshSignal, onSwitchUse
                 <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
                   {filter === 'active' ? (
                     <button
-                      onClick={e => { e.stopPropagation(); markDone(deal.id); }}
+                      onClick={e => { e.stopPropagation(); updateStatus(deal.id, 'done'); }}
                       style={{
                         flex: 1, padding: '15px', borderRadius: 14,
                         border: 'none', background: '#10b981', color: '#fff',
@@ -215,7 +201,7 @@ export function ViewTab({ currentUserId, deviceToken, refreshSignal, onSwitchUse
                     >✅ 完了にする</button>
                   ) : (
                     <button
-                      onClick={e => { e.stopPropagation(); markActive(deal.id); }}
+                      onClick={e => { e.stopPropagation(); updateStatus(deal.id, '未着手'); }}
                       style={{
                         flex: 1, padding: '15px', borderRadius: 14,
                         border: 'none', background: '#2563eb', color: '#fff',

@@ -1,14 +1,10 @@
-// PATCH  /api/deals/[id] — 案件更新
+// PATCH  /api/deals/[id] — 案件更新（部分更新対応）
 // DELETE /api/deals/[id] — 案件削除
 import { NextRequest } from 'next/server';
 import { validateRequest, unauthorizedResponse } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
 
-const DEAL_SELECT = `
-  *,
-  created_user:users!deals_created_by_fkey(name),
-  assignee_user:users!deals_assignee_fkey(name)
-`;
+const FIELDS = 'id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, importance, assignment_type, assignee, status';
 
 export async function PATCH(
   req: NextRequest,
@@ -21,23 +17,25 @@ export async function PATCH(
   const body = await req.json();
   const db = createServerClient();
 
-  // company_id で所有権チェック
+  // 送られたフィールドだけ更新（部分更新）
+  const updates: Record<string, unknown> = {};
+  const allowed = ['client_name', 'contact_person', 'memo', 'due_date', 'importance', 'assignment_type', 'assignee', 'status'] as const;
+  for (const key of allowed) {
+    if (key in body) {
+      updates[key] = (key === 'due_date' || key === 'assignee') ? (body[key] || null) : body[key];
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return Response.json({ error: 'No fields to update' }, { status: 400 });
+  }
+
   const { data, error } = await db
     .from('deals')
-    .update({
-      client_name:     body.client_name,
-      contact_person:  body.contact_person,
-      memo:            body.memo,
-      due_date:        body.due_date || null,
-      importance:      body.importance,
-      assignment_type: body.assignment_type,
-      assignee:        body.assignee || null,
-      status:          body.status,
-      image_url:       body.image_url || null,
-    })
+    .update(updates)
     .eq('id', id)
     .eq('company_id', session.companyId)
-    .select(DEAL_SELECT)
+    .select(FIELDS)
     .single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });

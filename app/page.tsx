@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { AuthScreen }   from './components/AuthScreen';
 import { UserSelect }   from './components/UserSelect';
@@ -55,6 +55,8 @@ export default function Page() {
         };
         localStorage.setItem(AUTH_KEY, JSON.stringify(updated));
         setSession(updated);
+        // validate がユーザー一覧も返すのでここでセット
+        if (data.users) setUsers(data.users);
         setAuthState('app');
       })
       .catch(() => {
@@ -62,24 +64,6 @@ export default function Page() {
         setAuthState('auth');
       });
   }, []);
-
-  // ───────────────────────────────────────
-  // ユーザー一覧取得
-  // ───────────────────────────────────────
-  const fetchUsers = useCallback(async (token: string) => {
-    const res = await fetch('/api/users', {
-      headers: { 'x-device-token': token },
-    });
-    if (!res.ok) return;
-    const { users: data } = await res.json();
-    setUsers(data ?? []);
-  }, []);
-
-  useEffect(() => {
-    if (authState === 'app' && session) {
-      fetchUsers(session.deviceToken);
-    }
-  }, [authState, session, fetchUsers]);
 
   // ───────────────────────────────────────
   // 認証成功コールバック
@@ -247,7 +231,6 @@ export default function Page() {
 
       {activeTab === 'view' && (
         <ViewTab
-          currentUserId={session.userId}
           deviceToken={session.deviceToken}
           refreshSignal={refreshSignal}
           currentUserName={session.userName}
