@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LogOut, Plus } from 'lucide-react';
 import { AuthScreen }   from './components/AuthScreen';
 import { UserSelect }   from './components/UserSelect';
@@ -174,15 +174,39 @@ export default function Page() {
     );
   }
 
+  // ─── ヘッダーの文字サイズ自動調整 ───
+  const badgeRef = useRef<HTMLSpanElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+
+  const adjustBadgeSize = useCallback(() => {
+    const badge = badgeRef.current;
+    const header = headerRef.current;
+    if (!badge || !header) return;
+    // リセット
+    badge.style.fontSize = '14px';
+    // ヘッダーが1行に収まるまで縮小（最小10px）
+    let size = 14;
+    while (header.scrollHeight > header.clientHeight + 2 && size > 10) {
+      size -= 0.5;
+      badge.style.fontSize = `${size}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustBadgeSize();
+    window.addEventListener('resize', adjustBadgeSize);
+    return () => window.removeEventListener('resize', adjustBadgeSize);
+  }, [adjustBadgeSize, session]);
+
   if (!session) return null;
 
   return (
     <div className="wrap">
       {/* ヘッダー */}
-      <header className="topbar">
+      <header className="topbar" ref={headerRef} style={{ flexWrap: 'nowrap', overflow: 'hidden' }}>
         <span className="brand">drive</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="user-badge">{session.companyName} / {session.userName}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span className="user-badge" ref={badgeRef}>{session.companyName} / {session.userName}</span>
           <button
             onClick={handleLogout}
             title="ログアウト"
@@ -194,6 +218,7 @@ export default function Page() {
               fontSize: 13,
               color: '#94a3b8',
               cursor: 'pointer',
+              flexShrink: 0,
             }}
           >
             <LogOut size={16} />

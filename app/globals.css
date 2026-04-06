@@ -65,16 +65,13 @@ body {
 }
 
 .user-badge {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-sub);
   background: #f1f5f9;
   padding: 7px 14px;
   border-radius: 99px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
 }
 
 /* ===== コンテンツ ===== */
