@@ -3,6 +3,7 @@
 import { NextRequest } from 'next/server';
 import { validateRequest, unauthorizedResponse } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
+import { createEvent } from '@/lib/google-calendar';
 
 export async function GET(req: NextRequest) {
   const session = await validateRequest(req);
@@ -48,5 +49,20 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  // Googleカレンダーに予定作成（期日がある場合、非同期で失敗しても無視）
+  if (data && data.due_date) {
+    createEvent(session.userId, {
+      client_name:    data.client_name,
+      contact_person: data.contact_person,
+      memo:           data.memo,
+      due_date:       data.due_date,
+    }).then(async (eventId) => {
+      if (eventId) {
+        await db.from('deals').update({ google_event_id: eventId }).eq('id', data.id);
+      }
+    }).catch(() => {});
+  }
+
   return Response.json({ deal: data }, { status: 201 });
 }

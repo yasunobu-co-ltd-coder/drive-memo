@@ -34,6 +34,7 @@ export type Deal = {
   assignee: string | null;
   status: DealStatus;
   image_url?: string | null;
+  google_event_id?: string | null;
   // JOIN で取得
   created_user?: { name: string } | null;
   assignee_user?: { name: string } | null;

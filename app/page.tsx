@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LogOut, Plus } from 'lucide-react';
+import { LogOut, Plus, Calendar } from 'lucide-react';
 import { AuthScreen }   from './components/AuthScreen';
 import { UserSelect }   from './components/UserSelect';
 import { MemoTab }      from './components/MemoTab';
@@ -30,6 +30,8 @@ export default function Page() {
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [showUserSwitch, setShowUserSwitch] = useState(false);
   const [addUserName, setAddUserName]       = useState('');
+  const [calConnected, setCalConnected]     = useState<boolean | null>(null);
+  const [calLoading, setCalLoading]         = useState(false);
 
   // ─── ヘッダーの文字サイズ自動調整（hooks は早期returnの前に置く） ───
   const badgeRef = useRef<HTMLSpanElement>(null);
@@ -186,6 +188,56 @@ export default function Page() {
   }
 
   // ───────────────────────────────────────
+  // Googleカレンダー連携
+  // ───────────────────────────────────────
+  async function checkCalendarStatus() {
+    if (!session) return;
+    try {
+      const res = await fetch('/api/auth/google/status', {
+        headers: { 'x-device-token': session.deviceToken },
+      });
+      if (res.ok) {
+        const { connected } = await res.json();
+        setCalConnected(connected);
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function handleCalendarConnect() {
+    if (!session) return;
+    setCalLoading(true);
+    try {
+      const res = await fetch('/api/auth/google', {
+        headers: { 'x-device-token': session.deviceToken },
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        // OAuth画面を開く
+        const popup = window.open(url, '_blank', 'width=500,height=700');
+        // ポップアップが閉じたら状態を再チェック
+        const timer = setInterval(() => {
+          if (!popup || popup.closed) {
+            clearInterval(timer);
+            setCalLoading(false);
+            checkCalendarStatus();
+          }
+        }, 1000);
+      }
+    } catch {
+      setCalLoading(false);
+    }
+  }
+
+  async function handleCalendarDisconnect() {
+    if (!session || !confirm('Googleカレンダー連携を解除しますか？')) return;
+    await fetch('/api/auth/google/disconnect', {
+      method: 'DELETE',
+      headers: { 'x-device-token': session.deviceToken },
+    });
+    setCalConnected(false);
+  }
+
+  // ───────────────────────────────────────
   // メモ登録後にリストを更新
   // ───────────────────────────────────────
   function onMemoCreated() {
@@ -310,6 +362,46 @@ export default function Page() {
               </button>
             </div>
 
+            {/* Googleカレンダー連携 */}
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: '#334155', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Calendar size={18} /> Googleカレンダー連携
+              </div>
+              {calConnected === null ? (
+                <div style={{ fontSize: 14, color: '#94a3b8' }}>確認中...</div>
+              ) : calConnected ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 14, color: '#10b981', fontWeight: 600 }}>連携中</span>
+                  <button
+                    onClick={handleCalendarDisconnect}
+                    style={{
+                      padding: '8px 16px', borderRadius: 10,
+                      border: '1.5px solid #fca5a5', background: '#fff',
+                      color: '#ef4444', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                    }}
+                  >解除</button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleCalendarConnect}
+                  disabled={calLoading}
+                  style={{
+                    padding: '12px 20px', borderRadius: 12,
+                    border: 'none', background: '#4285f4', color: '#fff',
+                    fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                    opacity: calLoading ? 0.6 : 1,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}
+                >
+                  <Calendar size={18} />
+                  {calLoading ? '接続中...' : 'Googleカレンダーと連携'}
+                </button>
+              )}
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>
+                期日付きメモがカレンダーに自動登録されます
+              </div>
+            </div>
+
             <button
               style={{
                 width: '100%',
@@ -345,7 +437,7 @@ export default function Page() {
           deviceToken={session.deviceToken}
           refreshSignal={refreshSignal}
           currentUserName={session.userName}
-          onSwitchUser={() => { fetchUsersIfEmpty(); setShowUserSwitch(true); }}
+          onSwitchUser={() => { fetchUsersIfEmpty(); checkCalendarStatus(); setShowUserSwitch(true); }}
         />
       )}
 

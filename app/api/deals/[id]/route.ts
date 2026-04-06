@@ -3,8 +3,9 @@
 import { NextRequest } from 'next/server';
 import { validateRequest, unauthorizedResponse } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
+import { createEvent, updateEvent, deleteEvent } from '@/lib/google-calendar';
 
-const FIELDS = 'id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, importance, assignment_type, assignee, status';
+const FIELDS = 'id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, importance, assignment_type, assignee, status, google_event_id';
 
 export async function PATCH(
   req: NextRequest,
@@ -39,6 +40,38 @@ export async function PATCH(
     .single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  // Googleカレンダー同期（非同期、失敗しても無視）
+  if (data) {
+    const syncCalendar = async () => {
+      if (data.status === 'done' && data.google_event_id) {
+        // 完了 → カレンダー予定削除
+        await deleteEvent(session.userId, data.google_event_id);
+        await db.from('deals').update({ google_event_id: null }).eq('id', data.id);
+      } else if (data.google_event_id) {
+        // 既存予定を更新
+        await updateEvent(session.userId, data.google_event_id, {
+          client_name:    data.client_name,
+          contact_person: data.contact_person,
+          memo:           data.memo,
+          due_date:       data.due_date,
+        });
+      } else if (data.due_date && data.status !== 'done') {
+        // 期日が新たに追加された → 予定作成
+        const eventId = await createEvent(session.userId, {
+          client_name:    data.client_name,
+          contact_person: data.contact_person,
+          memo:           data.memo,
+          due_date:       data.due_date,
+        });
+        if (eventId) {
+          await db.from('deals').update({ google_event_id: eventId }).eq('id', data.id);
+        }
+      }
+    };
+    syncCalendar().catch(() => {});
+  }
+
   return Response.json({ deal: data });
 }
 
@@ -52,6 +85,14 @@ export async function DELETE(
   const { id } = await params;
   const db = createServerClient();
 
+  // 削除前にカレンダーイベントIDを取得
+  const { data: deal } = await db
+    .from('deals')
+    .select('google_event_id, created_by')
+    .eq('id', id)
+    .eq('company_id', session.companyId)
+    .single();
+
   const { error } = await db
     .from('deals')
     .delete()
@@ -59,5 +100,11 @@ export async function DELETE(
     .eq('company_id', session.companyId);
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  // Googleカレンダーの予定も削除（非同期）
+  if (deal?.google_event_id) {
+    deleteEvent(deal.created_by ?? session.userId, deal.google_event_id).catch(() => {});
+  }
+
   return Response.json({ ok: true });
 }
