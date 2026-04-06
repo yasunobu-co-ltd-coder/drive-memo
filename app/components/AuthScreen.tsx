@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { User } from '@/lib/types';
 
 type AuthResult = {
@@ -93,6 +94,12 @@ export function AuthScreen({ onSuccess }: Props) {
             {loading ? '確認中...' : 'ログイン'}
           </button>
         </form>
+
+        <div style={{ textAlign: 'center', marginTop: 28 }}>
+          <Link href="/admin" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>
+            管理者はこちら
+          </Link>
+        </div>
       </div>
     </div>
   );
