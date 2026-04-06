@@ -31,6 +31,28 @@ export default function Page() {
   const [showUserSwitch, setShowUserSwitch] = useState(false);
   const [addUserName, setAddUserName]       = useState('');
 
+  // ─── ヘッダーの文字サイズ自動調整（hooks は早期returnの前に置く） ───
+  const badgeRef = useRef<HTMLSpanElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+
+  const adjustBadgeSize = useCallback(() => {
+    const badge = badgeRef.current;
+    const header = headerRef.current;
+    if (!badge || !header) return;
+    badge.style.fontSize = '14px';
+    let size = 14;
+    while (header.scrollHeight > header.clientHeight + 2 && size > 10) {
+      size -= 0.5;
+      badge.style.fontSize = `${size}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustBadgeSize();
+    window.addEventListener('resize', adjustBadgeSize);
+    return () => window.removeEventListener('resize', adjustBadgeSize);
+  }, [adjustBadgeSize, session]);
+
   // ───────────────────────────────────────
   // 起動時：localStorage から即座に復帰（オフラインファースト）
   // バックグラウンドで validate し、401 の場合のみログアウト
@@ -207,30 +229,6 @@ export default function Page() {
       />
     );
   }
-
-  // ─── ヘッダーの文字サイズ自動調整 ───
-  const badgeRef = useRef<HTMLSpanElement>(null);
-  const headerRef = useRef<HTMLElement>(null);
-
-  const adjustBadgeSize = useCallback(() => {
-    const badge = badgeRef.current;
-    const header = headerRef.current;
-    if (!badge || !header) return;
-    // リセット
-    badge.style.fontSize = '14px';
-    // ヘッダーが1行に収まるまで縮小（最小10px）
-    let size = 14;
-    while (header.scrollHeight > header.clientHeight + 2 && size > 10) {
-      size -= 0.5;
-      badge.style.fontSize = `${size}px`;
-    }
-  }, []);
-
-  useEffect(() => {
-    adjustBadgeSize();
-    window.addEventListener('resize', adjustBadgeSize);
-    return () => window.removeEventListener('resize', adjustBadgeSize);
-  }, [adjustBadgeSize, session]);
 
   if (!session) return null;
 
