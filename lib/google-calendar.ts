@@ -125,10 +125,11 @@ export async function createEvent(userId: string, deal: {
   const accessToken = await getAccessToken(userId);
   if (!accessToken) return null;
 
-  const summary = `【drive】${deal.client_name || '案件'}`;
+  const summary = deal.client_name || '案件';
   const descParts: string[] = [];
   if (deal.contact_person) descParts.push(`担当者: ${deal.contact_person}`);
   if (deal.memo) descParts.push(`\n${deal.memo}`);
+  descParts.push('\n\ndrive-memo');
 
   const res = await fetch(`${CALENDAR_BASE}/calendars/primary/events`, {
     method: 'POST',
@@ -167,10 +168,11 @@ export async function updateEvent(userId: string, eventId: string, deal: {
   const accessToken = await getAccessToken(userId);
   if (!accessToken) return false;
 
-  const summary = `【drive】${deal.client_name || '案件'}`;
+  const summary = deal.client_name || '案件';
   const descParts: string[] = [];
   if (deal.contact_person) descParts.push(`担当者: ${deal.contact_person}`);
   if (deal.memo) descParts.push(`\n${deal.memo}`);
+  descParts.push('\n\ndrive-memo');
 
   const res = await fetch(`${CALENDAR_BASE}/calendars/primary/events/${eventId}`, {
     method: 'PUT',
