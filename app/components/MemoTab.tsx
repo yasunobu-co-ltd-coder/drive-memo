@@ -1,12 +1,14 @@
 'use client';
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Mic, Square, Loader } from 'lucide-react';
+import { Mic, Square, Loader, Volume2 } from 'lucide-react';
 
 type Props = {
   currentUserId: string;
   deviceToken: string;
   onCreated: () => void;
 };
+
+type CorpHit = { name: string; furi: string };
 
 const INITIAL = { client_name: '', contact_person: '', memo: '', due_date: '' };
 
@@ -15,18 +17,36 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
   const [saving, setSaving]       = useState(false);
   const [recording, setRecording] = useState(false);
   const [parsing, setParsing]     = useState(false);
-  const [displayText, setDisplayText] = useState('');   // 画面表示用
+  const [displayText, setDisplayText] = useState('');
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState(false);
 
-  const recRef     = useRef<any>(null);
-  const textRef    = useRef('');  // 録音テキストを即時追跡（stateのラグ回避）
+  // ボイスコマンドモード
+  const [cmdMode, setCmdMode]         = useState(false);
+  const [cmdText, setCmdText]         = useState('');    // コマンド認識テキスト
+  const [corpHits, setCorpHits]       = useState<CorpHit[]>([]);
+  const [corpIndex, setCorpIndex]     = useState(0);
+
+  const recRef      = useRef<any>(null);
+  const cmdRef      = useRef<any>(null);
+  const textRef     = useRef('');
 
   function setField(k: keyof typeof form, v: string) {
     setForm(f => ({ ...f, [k]: v }));
   }
 
-  // AIで音声テキストを解析してフォームに反映
+  // ─── 法人辞書検索 ───
+  const searchCorp = useCallback(async (text: string): Promise<CorpHit[]> => {
+    const firstPart = text.split(/[のにはをでがとへ、。]/)[0]?.trim() ?? '';
+    if (firstPart.length < 2) return [];
+    try {
+      const res = await fetch(`/api/corp-search?q=${encodeURIComponent(firstPart)}`);
+      const data = await res.json();
+      return data.results ?? [];
+    } catch { return []; }
+  }, []);
+
+  // ─── AIで音声テキストを解析 ───
   const parseWithAI = useCallback(async (text: string) => {
     if (!text.trim()) return;
     setParsing(true);
@@ -45,37 +65,134 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         due_date:       parsed.due_date       || f.due_date,
       }));
     } catch {
-      // AI解析失敗時はメモにそのまま入れる
       setForm(f => ({ ...f, memo: f.memo ? f.memo + '\n' + text : text }));
     } finally {
       setParsing(false);
     }
   }, [deviceToken]);
 
-  // タップで録音開始/停止を切り替え
+  // ─── ボイスコマンドモード開始 ───
+  const startCmdMode = useCallback((hits: CorpHit[]) => {
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+
+    setCmdMode(true);
+    setCmdText('');
+    setCorpHits(hits);
+    setCorpIndex(0);
+
+    // 最初の候補を会社名に入れる（あれば）
+    if (hits.length > 0) {
+      setForm(f => ({ ...f, client_name: hits[0].name }));
+    }
+
+    const r = new SR();
+    r.lang = 'ja-JP';
+    r.interimResults = false;
+    r.maxAlternatives = 3;
+    r.continuous = true;
+    cmdRef.current = r;
+
+    r.onresult = (e: any) => {
+      const last = e.results[e.results.length - 1];
+      // 複数候補をチェック（認識精度向上）
+      const candidates: string[] = [];
+      for (let i = 0; i < last.length; i++) {
+        candidates.push(last[i].transcript.trim());
+      }
+      const text = candidates[0];
+      setCmdText(text);
+
+      // コマンド判定（候補のどれかにマッチすればOK）
+      const matchAny = (keywords: string[]) =>
+        candidates.some(c => keywords.some(k => c.includes(k)));
+
+      if (matchAny(['次', 'つぎ', '次の', 'つぎの'])) {
+        setCorpIndex(prev => {
+          const next = prev + 1;
+          if (next < hits.length) {
+            setForm(f => ({ ...f, client_name: hits[next].name }));
+            return next;
+          }
+          return prev; // 最後なら動かない
+        });
+      } else if (matchAny(['戻る', 'もどる', '前', 'まえ'])) {
+        setCorpIndex(prev => {
+          const next = prev - 1;
+          if (next >= 0) {
+            setForm(f => ({ ...f, client_name: hits[next].name }));
+            return next;
+          }
+          return prev;
+        });
+      } else if (matchAny(['登録', 'とうろく', 'OK', 'オッケー', 'おっけー', '確定', 'かくてい'])) {
+        // 登録実行
+        cmdRef.current?.stop();
+        setCmdMode(false);
+        // submitをトリガー
+        document.getElementById('memo-submit')?.click();
+      } else if (matchAny(['やり直し', 'やりなおし', 'クリア', 'くりあ', 'リセット'])) {
+        cmdRef.current?.stop();
+        setCmdMode(false);
+        setForm(INITIAL);
+        setDisplayText('');
+        setCorpHits([]);
+        setCorpIndex(0);
+      }
+    };
+
+    r.onend = () => {
+      // コマンドモード中なら自動再開（途切れ防止）
+      if (cmdRef.current && cmdRef.current === r) {
+        try { r.start(); } catch { setCmdMode(false); }
+      }
+    };
+
+    r.onerror = (ev: any) => {
+      if (ev.error === 'no-speech' || ev.error === 'aborted') return;
+      console.warn('cmd recognition error:', ev.error);
+    };
+
+    r.start();
+  }, []);
+
+  // ─── コマンドモード停止 ───
+  function stopCmdMode() {
+    cmdRef.current?.stop();
+    cmdRef.current = null;
+    setCmdMode(false);
+    setCmdText('');
+  }
+
+  // ─── メモ録音 開始/停止 ───
   const handleMicClick = useCallback(() => {
     if (parsing) return;
 
+    // コマンドモード中にタップ → コマンドモード終了
+    if (cmdMode) {
+      stopCmdMode();
+      return;
+    }
+
     if (recording) {
-      // 停止 → onend で自動的にAI解析が走る
       recRef.current?.stop();
       return;
     }
 
-    // 開始
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!SR) { alert('Chrome または Safari をお使いください'); return; }
 
     const r = new SR();
     r.lang = 'ja-JP';
-    r.interimResults = true;   // リアルタイム途中結果を表示
+    r.interimResults = true;
     r.maxAlternatives = 1;
     r.continuous = true;
     recRef.current = r;
 
-    // テキストをリセット
     textRef.current = '';
     setDisplayText('');
+    setCorpHits([]);
+    setCorpIndex(0);
 
     r.onstart = () => setRecording(true);
 
@@ -90,23 +207,26 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
           interimText += transcript;
         }
       }
-      // ref に確定テキストを保存（stopした瞬間に確実に取れる）
       textRef.current = finalText;
-      // 画面には確定+途中を表示
       setDisplayText(finalText + interimText);
     };
 
     r.onend = () => {
       setRecording(false);
-      // 確定テキストがあればAI解析
       const captured = textRef.current;
-      if (captured.trim()) {
-        parseWithAI(captured);
-      }
+      if (!captured.trim()) return;
+
+      // AI解析と法人辞書検索を並列実行
+      const aiPromise = parseWithAI(captured);
+      const corpPromise = searchCorp(captured);
+
+      // 両方完了したらコマンドモード開始
+      Promise.all([aiPromise, corpPromise]).then(([, hits]) => {
+        startCmdMode(hits);
+      });
     };
 
     r.onerror = (ev: any) => {
-      // no-speech は正常系（何も言わなかった場合）
       if (ev.error !== 'no-speech') {
         console.warn('SpeechRecognition error:', ev.error);
       }
@@ -114,16 +234,20 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     };
 
     r.start();
-  }, [recording, parsing, parseWithAI]);
+  }, [recording, parsing, cmdMode, parseWithAI, searchCorp, startCmdMode]);
 
-  // コンポーネントアンマウント時にクリーンアップ
   useEffect(() => {
-    return () => { recRef.current?.abort?.(); };
+    return () => {
+      recRef.current?.abort?.();
+      cmdRef.current?.stop?.();
+      cmdRef.current = null;
+    };
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    stopCmdMode();
     if (!form.client_name.trim() && !form.memo.trim()) {
       return setError('会社名またはメモを入力してください');
     }
@@ -144,6 +268,8 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '登録失敗'); return; }
       setForm(INITIAL);
       setDisplayText('');
+      setCorpHits([]);
+      setCorpIndex(0);
       textRef.current = '';
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2500);
@@ -152,10 +278,23 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     finally { setSaving(false); }
   }
 
+  // ─── マイクボタンの状態 ───
+  const micBg = cmdMode ? '#10b981' : parsing ? '#94a3b8' : recording ? '#ef4444' : '#2563eb';
+  const micShadow = cmdMode
+    ? '0 0 0 14px rgba(16,185,129,.18), 0 6px 20px rgba(16,185,129,.4)'
+    : recording
+    ? '0 0 0 14px rgba(239,68,68,.18), 0 6px 20px rgba(239,68,68,.4)'
+    : '0 6px 24px rgba(37,99,235,.38)';
+  const micLabel = cmdMode
+    ? '音声コマンド待機中'
+    : parsing ? 'AI解析中...'
+    : recording ? '録音中… タップで停止'
+    : 'タップで音声入力';
+
   return (
     <div style={{ padding: '28px 22px', flex: 1, overflowY: 'auto' }}>
 
-      {/* マイクボタン（タップで切替） */}
+      {/* マイクボタン */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 36 }}>
         <button
           type="button"
@@ -165,25 +304,48 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
             width: 96, height: 96,
             borderRadius: '50%',
             border: 'none',
-            background: parsing ? '#94a3b8' : recording ? '#ef4444' : '#2563eb',
+            background: micBg,
             color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: recording
-              ? '0 0 0 14px rgba(239,68,68,.18), 0 6px 20px rgba(239,68,68,.4)'
-              : '0 6px 24px rgba(37,99,235,.38)',
+            boxShadow: micShadow,
             cursor: parsing ? 'wait' : 'pointer',
             transition: 'background .2s, box-shadow .2s',
-            animation: recording ? 'pulse 1.5s infinite' : 'none',
+            animation: (recording || cmdMode) ? 'pulse 1.5s infinite' : 'none',
           }}
         >
           {parsing ? <Loader size={40} style={{ animation: 'spin .8s linear infinite' }} />
+            : cmdMode ? <Volume2 size={40} />
             : recording ? <Square size={32} fill="#fff" />
             : <Mic size={40} />}
         </button>
-        <div style={{ marginTop: 14, fontSize: 16, color: '#94a3b8', fontWeight: 600 }}>
-          {parsing ? 'AI解析中...' : recording ? '録音中… タップで停止' : 'タップで音声入力'}
+        <div style={{ marginTop: 14, fontSize: 16, color: cmdMode ? '#10b981' : '#94a3b8', fontWeight: 600 }}>
+          {micLabel}
         </div>
-        {displayText && (
+
+        {/* コマンドモード：使い方ガイド */}
+        {cmdMode && (
+          <div style={{
+            marginTop: 10, padding: '10px 16px',
+            background: '#ecfdf5', borderRadius: 12,
+            fontSize: 14, color: '#065f46', textAlign: 'center',
+            lineHeight: 1.8,
+          }}>
+            「<b>次</b>」→ 次の候補　「<b>戻る</b>」→ 前の候補<br />
+            「<b>登録</b>」→ 送信　「<b>やり直し</b>」→ クリア
+          </div>
+        )}
+
+        {/* コマンド認識テキスト */}
+        {cmdMode && cmdText && (
+          <div style={{
+            marginTop: 8, fontSize: 14, color: '#10b981', fontWeight: 600,
+          }}>
+            🎤 「{cmdText}」
+          </div>
+        )}
+
+        {/* 音声テキスト表示 */}
+        {!cmdMode && displayText && (
           <div style={{
             marginTop: 14, padding: '12px 16px',
             background: '#eff6ff', borderRadius: 12,
@@ -206,7 +368,14 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label className="input-label" htmlFor="memo-client">会社名</label>
+          <label className="input-label" htmlFor="memo-client">
+            会社名
+            {corpHits.length > 0 && (
+              <span style={{ fontWeight: 500, fontSize: 13, color: '#94a3b8', marginLeft: 8 }}>
+                候補 {corpIndex + 1}/{corpHits.length}
+              </span>
+            )}
+          </label>
           <input
             id="memo-client"
             name="client_name"
@@ -215,6 +384,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
             onChange={e => setField('client_name', e.target.value)}
             placeholder={parsing ? '解析中...' : '株式会社〇〇'}
             readOnly={parsing}
+            style={corpHits.length > 0 ? { borderColor: '#10b981', background: '#f0fdf4' } : undefined}
           />
         </div>
 
@@ -257,7 +427,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
           />
         </div>
 
-        <button className="primary-btn" type="submit" disabled={saving || parsing}>
+        <button id="memo-submit" className="primary-btn" type="submit" disabled={saving || parsing}>
           {saving ? '登録中...' : '登録する'}
         </button>
       </form>
