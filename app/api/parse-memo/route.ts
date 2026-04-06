@@ -14,6 +14,9 @@ export async function POST(req: NextRequest) {
   if (!text || typeof text !== 'string') {
     return Response.json({ error: 'text is required' }, { status: 400 });
   }
+  if (text.length > 2000) {
+    return Response.json({ error: 'テキストが長すぎます（2000文字以下）' }, { status: 400 });
+  }
 
   const today = new Date().toISOString().slice(0, 10);
 

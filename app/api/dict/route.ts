@@ -1,8 +1,12 @@
 // GET /api/dict?q=... — 会社名辞書サジェスト検索
 import { NextRequest } from 'next/server';
+import { validateRequest, unauthorizedResponse } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
 
 export async function GET(req: NextRequest) {
+  const session = await validateRequest(req);
+  if (!session) return unauthorizedResponse();
+
   const raw = req.nextUrl.searchParams.get('q') ?? '';
   if (raw.length < 1) return Response.json({ results: [] });
 
