@@ -143,7 +143,6 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
           return (
             <div
               key={deal.id}
-              onClick={() => setExpanded(isOpen ? null : deal.id)}
               style={{
                 background: '#fff',
                 borderRadius: 18,
@@ -151,11 +150,13 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
                 marginBottom: 14,
                 border: isOverdue ? '2px solid #fca5a5' : '1.5px solid #e2e8f0',
                 boxShadow: '0 2px 8px rgba(0,0,0,.04)',
-                cursor: 'pointer',
               }}
             >
-              {/* 会社名 + 期日 */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+              {/* 会社名 + 期日（タップで展開） */}
+              <div
+                onClick={() => setExpanded(isOpen ? null : deal.id)}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}
+              >
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', lineHeight: 1.3, flex: 1, wordBreak: 'break-all' }}>
                   {deal.client_name || '（会社名なし）'}
                 </div>
@@ -170,18 +171,22 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
                 )}
               </div>
 
-              {/* 担当者 */}
+              {/* 担当者（タップで展開） */}
               {deal.contact_person && (
-                <div style={{ fontSize: 17, color: '#64748b', marginTop: 5 }}>
+                <div
+                  onClick={() => setExpanded(isOpen ? null : deal.id)}
+                  style={{ fontSize: 17, color: '#64748b', marginTop: 5, cursor: 'pointer' }}
+                >
                   👤 {deal.contact_person}
                 </div>
               )}
 
-              {/* メモ */}
+              {/* メモ（長押しでコピー可能） */}
               {deal.memo && (
                 <div style={{
                   fontSize: 17, color: '#334155', lineHeight: 1.75,
                   marginTop: 10, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                  userSelect: 'text', WebkitUserSelect: 'text',
                 }}>
                   {deal.memo}
                 </div>

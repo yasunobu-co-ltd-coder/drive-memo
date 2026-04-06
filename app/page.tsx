@@ -237,9 +237,6 @@ export default function Page() {
       {/* ヘッダー */}
       <header className="topbar" ref={headerRef} style={{ flexWrap: 'nowrap', overflow: 'hidden' }}>
         <span className="brand">drive</span>
-        <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace', marginLeft: 4, alignSelf: 'flex-end', lineHeight: 1 }}>
-          {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev'}
-        </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <span className="user-badge" ref={badgeRef}>{session.companyName} / {session.userName}</span>
           <button
@@ -260,6 +257,13 @@ export default function Page() {
           </button>
         </div>
       </header>
+
+      {/* バージョン番号（中央寄せ） */}
+      <div style={{ textAlign: 'center', padding: '2px 0', background: '#fafcff', borderBottom: '1px solid #f1f5f9' }}>
+        <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>
+          {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev'}
+        </span>
+      </div>
 
       {/* ユーザー切替モーダル */}
       {showUserSwitch && (

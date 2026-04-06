@@ -39,6 +39,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
   const wakeRef     = useRef<any>(null);
   const formRef     = useRef<FormData>(INITIAL);
   const busyRef     = useRef(false); // 録音中・解析中・編集中のフラグ
+  const mountedRef  = useRef(true);  // アンマウント検出用
 
   useEffect(() => { formRef.current = form; }, [form]);
 
@@ -160,6 +161,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     };
 
     r.onend = () => {
+      if (!mountedRef.current) return;
       if (cmdRef.current && cmdRef.current === r) {
         try { r.start(); } catch {
           setEditMode(false);
@@ -312,6 +314,8 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     };
 
     r.onend = () => {
+      // アンマウント済みなら何もしない
+      if (!mountedRef.current) return;
       // ウェイクリスナーが有効 & busyでなければ自動再開
       if (wakeRef.current && wakeRef.current === r && !busyRef.current) {
         try { r.start(); } catch { setListening(false); }
@@ -346,6 +350,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     }, 1000);
 
     return () => {
+      mountedRef.current = false;
       clearTimeout(timer);
       wakeRef.current?.stop();
       wakeRef.current = null;
