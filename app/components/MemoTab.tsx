@@ -148,14 +148,11 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         return;
       }
       if (/やり直し|やりなおし|クリア|くりあ|リセット|全部消して/.test(text)) {
-        cmdRef.current?.stop();
-        cmdRef.current = null;
-        setEditMode(false);
-        busyRef.current = false;
         setForm(INITIAL);
         setDisplayText('');
-        // やり直し後はウェイクワード待機に戻る
-        setTimeout(() => startWakeListener(), 500);
+        setEditStatus('✓ クリアしました。続けて話してください');
+        setTimeout(() => setEditStatus(''), 2500);
+        // 編集モードは維持（登録するまで戻らない）
         return;
       }
 
@@ -186,7 +183,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     setEditStatus('');
   }
 
-  // ─── Web Speech API（リアルタイム表示用） ───
+  // ─── Web Speech API（リアルタイム表示用 + 「終了」検知） ───
   function startSpeechPreview() {
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!SR) return;
@@ -202,6 +199,17 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         text += e.results[i][0].transcript;
       }
       setDisplayText(text);
+
+      // 「終了」で録音を停止
+      const last = e.results[e.results.length - 1];
+      if (last.isFinal) {
+        const finalText = last[0].transcript.trim();
+        if (/終了|しゅうりょう|ストップ|おわり|終わり/.test(finalText)) {
+          mediaRef.current?.stop();
+          r.stop();
+          speechRef.current = null;
+        }
+      }
     };
     r.onend = () => {};
     r.onerror = () => {};
@@ -390,7 +398,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
 
     if (editMode) {
       stopEditMode();
-      startWakeListener();
+      // 手動編集に切り替え（ウェイク待機には戻さない）
       return;
     }
 
