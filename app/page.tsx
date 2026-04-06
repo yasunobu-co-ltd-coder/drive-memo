@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { LogOut } from 'lucide-react';
+import { LogOut, Plus } from 'lucide-react';
 import { AuthScreen }   from './components/AuthScreen';
 import { UserSelect }   from './components/UserSelect';
 import { MemoTab }      from './components/MemoTab';
@@ -29,6 +29,7 @@ export default function Page() {
   const [activeTab, setActiveTab]   = useState<Tab>('memo');
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [showUserSwitch, setShowUserSwitch] = useState(false);
+  const [addUserName, setAddUserName]       = useState('');
 
   // ───────────────────────────────────────
   // 起動時：localStorage からトークン検証
@@ -106,6 +107,26 @@ export default function Page() {
     localStorage.setItem(AUTH_KEY, JSON.stringify(updated));
     setSession(updated);
     setShowUserSwitch(false);
+  }
+
+  // ───────────────────────────────────────
+  // ユーザー追加（一般ユーザーが自社にメンバーを追加）
+  // ───────────────────────────────────────
+  async function handleAddUser() {
+    if (!session || !addUserName.trim()) return;
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-device-token': session.deviceToken,
+      },
+      body: JSON.stringify({ name: addUserName.trim() }),
+    });
+    if (res.ok) {
+      const { user } = await res.json();
+      setUsers(prev => [...prev, user]);
+      setAddUserName('');
+    }
   }
 
   // ───────────────────────────────────────
@@ -199,10 +220,36 @@ export default function Page() {
                 </button>
               ))}
             </div>
+
+            {/* 担当者追加 */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+              <input
+                className="input-field"
+                style={{ flex: 1, fontSize: 16, padding: '12px 14px' }}
+                value={addUserName}
+                onChange={e => setAddUserName(e.target.value)}
+                placeholder="新しい担当者名"
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddUser(); } }}
+              />
+              <button
+                onClick={handleAddUser}
+                style={{
+                  padding: '12px 18px', borderRadius: 12,
+                  border: 'none', background: '#2563eb', color: '#fff',
+                  fontWeight: 700, fontSize: 16, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  opacity: addUserName.trim() ? 1 : 0.5,
+                }}
+                disabled={!addUserName.trim()}
+              >
+                <Plus size={18} /> 追加
+              </button>
+            </div>
+
             <button
               style={{
                 width: '100%',
-                marginTop: 20,
+                marginTop: 16,
                 padding: '14px',
                 borderRadius: 14,
                 border: '1.5px solid #e2e8f0',
