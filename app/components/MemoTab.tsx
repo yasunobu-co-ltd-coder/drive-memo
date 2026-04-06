@@ -8,12 +8,11 @@ type Props = {
   onCreated: () => void;
 };
 
-type CorpHit = { name: string; furi: string };
-
-const INITIAL = { client_name: '', contact_person: '', memo: '', due_date: '' };
+type FormData = { client_name: string; contact_person: string; memo: string; due_date: string };
+const INITIAL: FormData = { client_name: '', contact_person: '', memo: '', due_date: '' };
 
 export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
-  const [form, setForm]           = useState(INITIAL);
+  const [form, setForm]           = useState<FormData>(INITIAL);
   const [saving, setSaving]       = useState(false);
   const [recording, setRecording] = useState(false);
   const [parsing, setParsing]     = useState(false);
@@ -21,32 +20,40 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState(false);
 
-  // ボイスコマンドモード
-  const [cmdMode, setCmdMode]         = useState(false);
-  const [cmdText, setCmdText]         = useState('');    // コマンド認識テキスト
-  const [corpHits, setCorpHits]       = useState<CorpHit[]>([]);
-  const [corpIndex, setCorpIndex]     = useState(0);
+  // 音声編集モード
+  const [editMode, setEditMode]       = useState(false);
+  const [editStatus, setEditStatus]   = useState('');
+  const [correcting, setCorrecting]   = useState(false);
 
-  const recRef      = useRef<any>(null);
-  const cmdRef      = useRef<any>(null);
-  const textRef     = useRef('');
+  // refs
+  const mediaRef    = useRef<MediaRecorder | null>(null);
+  const chunksRef   = useRef<Blob[]>([]);
+  const speechRef   = useRef<any>(null);      // Web Speech API（リアルタイム表示用）
+  const cmdRef      = useRef<any>(null);       // 編集モード用
+  const formRef     = useRef<FormData>(INITIAL);
 
-  function setField(k: keyof typeof form, v: string) {
+  useEffect(() => { formRef.current = form; }, [form]);
+
+  function setField(k: keyof FormData, v: string) {
     setForm(f => ({ ...f, [k]: v }));
   }
 
-  // ─── 法人辞書検索 ───
-  const searchCorp = useCallback(async (text: string): Promise<CorpHit[]> => {
-    const firstPart = text.split(/[のにはをでがとへ、。]/)[0]?.trim() ?? '';
-    if (firstPart.length < 2) return [];
-    try {
-      const res = await fetch(`/api/corp-search?q=${encodeURIComponent(firstPart)}`);
-      const data = await res.json();
-      return data.results ?? [];
-    } catch { return []; }
-  }, []);
+  // ─── Whisper文字起こし ───
+  const transcribeWithWhisper = useCallback(async (audioBlob: Blob): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'recording.webm');
 
-  // ─── AIで音声テキストを解析 ───
+    const res = await fetch('/api/transcribe', {
+      method: 'POST',
+      headers: { 'x-device-token': deviceToken },
+      body: formData,
+    });
+    if (!res.ok) throw new Error('transcribe failed');
+    const { text } = await res.json();
+    return text ?? '';
+  }, [deviceToken]);
+
+  // ─── AI解析（初回：メモ全文→フォーム振り分け） ───
   const parseWithAI = useCallback(async (text: string) => {
     if (!text.trim()) return;
     setParsing(true);
@@ -58,12 +65,12 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
       });
       if (!res.ok) throw new Error('parse failed');
       const parsed = await res.json();
-      setForm(f => ({
-        client_name:    parsed.client_name    || f.client_name,
-        contact_person: parsed.contact_person || f.contact_person,
-        memo:           parsed.memo           || f.memo,
-        due_date:       parsed.due_date       || f.due_date,
-      }));
+      setForm({
+        client_name:    parsed.client_name    || '',
+        contact_person: parsed.contact_person || '',
+        memo:           parsed.memo           || '',
+        due_date:       parsed.due_date       || '',
+      });
     } catch {
       setForm(f => ({ ...f, memo: f.memo ? f.memo + '\n' + text : text }));
     } finally {
@@ -71,174 +78,202 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     }
   }, [deviceToken]);
 
-  // ─── ボイスコマンドモード開始 ───
-  const startCmdMode = useCallback((hits: CorpHit[]) => {
+  // ─── AI修正（音声編集モード） ───
+  const correctWithAI = useCallback(async (instruction: string) => {
+    if (!instruction.trim()) return;
+    setCorrecting(true);
+    setEditStatus('修正中...');
+    try {
+      const res = await fetch('/api/correct-memo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
+        body: JSON.stringify({ current: formRef.current, instruction }),
+      });
+      if (!res.ok) throw new Error('correct failed');
+      const { changes } = await res.json();
+
+      if (Object.keys(changes).length > 0) {
+        setForm(f => ({ ...f, ...changes }));
+        const fields: Record<string, string> = {
+          client_name: '会社名', contact_person: '担当者', memo: 'メモ', due_date: '期日',
+        };
+        const changed = Object.keys(changes).map(k => fields[k] || k).join('・');
+        setEditStatus(`✓ ${changed}を修正しました`);
+      } else {
+        setEditStatus('変更箇所が見つかりませんでした');
+      }
+    } catch {
+      setEditStatus('修正に失敗しました');
+    } finally {
+      setCorrecting(false);
+      setTimeout(() => setEditStatus(''), 2500);
+    }
+  }, [deviceToken]);
+
+  // ─── 音声編集モード開始 ───
+  const startEditMode = useCallback(() => {
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!SR) return;
 
-    setCmdMode(true);
-    setCmdText('');
-    setCorpHits(hits);
-    setCorpIndex(0);
-
-    // 最初の候補を会社名に入れる（あれば）
-    if (hits.length > 0) {
-      setForm(f => ({ ...f, client_name: hits[0].name }));
-    }
+    setEditMode(true);
+    setEditStatus('');
 
     const r = new SR();
     r.lang = 'ja-JP';
     r.interimResults = false;
-    r.maxAlternatives = 3;
+    r.maxAlternatives = 1;
     r.continuous = true;
     cmdRef.current = r;
 
     r.onresult = (e: any) => {
       const last = e.results[e.results.length - 1];
-      // 複数候補をチェック（認識精度向上）
-      const candidates: string[] = [];
-      for (let i = 0; i < last.length; i++) {
-        candidates.push(last[i].transcript.trim());
-      }
-      const text = candidates[0];
-      setCmdText(text);
+      const text = last[0].transcript.trim();
+      if (!text) return;
 
-      // コマンド判定（候補のどれかにマッチすればOK）
-      const matchAny = (keywords: string[]) =>
-        candidates.some(c => keywords.some(k => c.includes(k)));
+      setEditStatus(`🎤 「${text}」`);
 
-      if (matchAny(['次', 'つぎ', '次の', 'つぎの'])) {
-        setCorpIndex(prev => {
-          const next = prev + 1;
-          if (next < hits.length) {
-            setForm(f => ({ ...f, client_name: hits[next].name }));
-            return next;
-          }
-          return prev; // 最後なら動かない
-        });
-      } else if (matchAny(['戻る', 'もどる', '前', 'まえ'])) {
-        setCorpIndex(prev => {
-          const next = prev - 1;
-          if (next >= 0) {
-            setForm(f => ({ ...f, client_name: hits[next].name }));
-            return next;
-          }
-          return prev;
-        });
-      } else if (matchAny(['登録', 'とうろく', 'OK', 'オッケー', 'おっけー', '確定', 'かくてい'])) {
-        // 登録実行
+      // 特殊コマンド
+      if (/登録|とうろく|OK|オッケー|おっけー|確定|かくてい/.test(text)) {
         cmdRef.current?.stop();
-        setCmdMode(false);
-        // submitをトリガー
+        cmdRef.current = null;
+        setEditMode(false);
         document.getElementById('memo-submit')?.click();
-      } else if (matchAny(['やり直し', 'やりなおし', 'クリア', 'くりあ', 'リセット'])) {
+        return;
+      }
+      if (/やり直し|やりなおし|クリア|くりあ|リセット|全部消して/.test(text)) {
         cmdRef.current?.stop();
-        setCmdMode(false);
+        cmdRef.current = null;
+        setEditMode(false);
         setForm(INITIAL);
         setDisplayText('');
-        setCorpHits([]);
-        setCorpIndex(0);
+        return;
       }
+
+      // 修正指示としてAIに送る
+      correctWithAI(text);
     };
 
     r.onend = () => {
-      // コマンドモード中なら自動再開（途切れ防止）
       if (cmdRef.current && cmdRef.current === r) {
-        try { r.start(); } catch { setCmdMode(false); }
+        try { r.start(); } catch { setEditMode(false); }
       }
     };
 
     r.onerror = (ev: any) => {
       if (ev.error === 'no-speech' || ev.error === 'aborted') return;
-      console.warn('cmd recognition error:', ev.error);
     };
 
     r.start();
-  }, []);
+  }, [correctWithAI]);
 
-  // ─── コマンドモード停止 ───
-  function stopCmdMode() {
+  function stopEditMode() {
     cmdRef.current?.stop();
     cmdRef.current = null;
-    setCmdMode(false);
-    setCmdText('');
+    setEditMode(false);
+    setEditStatus('');
   }
 
-  // ─── メモ録音 開始/停止 ───
-  const handleMicClick = useCallback(() => {
-    if (parsing) return;
-
-    // コマンドモード中にタップ → コマンドモード終了
-    if (cmdMode) {
-      stopCmdMode();
-      return;
-    }
-
-    if (recording) {
-      recRef.current?.stop();
-      return;
-    }
-
+  // ─── Web Speech API 開始（リアルタイム表示のみ） ───
+  function startSpeechPreview() {
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
-    if (!SR) { alert('Chrome または Safari をお使いください'); return; }
+    if (!SR) return;
 
     const r = new SR();
     r.lang = 'ja-JP';
     r.interimResults = true;
     r.maxAlternatives = 1;
     r.continuous = true;
-    recRef.current = r;
-
-    textRef.current = '';
-    setDisplayText('');
-    setCorpHits([]);
-    setCorpIndex(0);
-
-    r.onstart = () => setRecording(true);
+    speechRef.current = r;
 
     r.onresult = (e: any) => {
-      let finalText = '';
-      let interimText = '';
+      let text = '';
       for (let i = 0; i < e.results.length; i++) {
-        const transcript = e.results[i][0].transcript;
-        if (e.results[i].isFinal) {
-          finalText += transcript;
-        } else {
-          interimText += transcript;
-        }
+        text += e.results[i][0].transcript;
       }
-      textRef.current = finalText;
-      setDisplayText(finalText + interimText);
+      setDisplayText(text);
     };
 
-    r.onend = () => {
-      setRecording(false);
-      const captured = textRef.current;
-      if (!captured.trim()) return;
-
-      // AI解析と法人辞書検索を並列実行
-      const aiPromise = parseWithAI(captured);
-      const corpPromise = searchCorp(captured);
-
-      // 両方完了したらコマンドモード開始
-      Promise.all([aiPromise, corpPromise]).then(([, hits]) => {
-        startCmdMode(hits);
-      });
-    };
-
-    r.onerror = (ev: any) => {
-      if (ev.error !== 'no-speech') {
-        console.warn('SpeechRecognition error:', ev.error);
-      }
-      setRecording(false);
-    };
+    r.onend = () => { /* MediaRecorder側で制御 */ };
+    r.onerror = () => { /* 表示用なのでエラーは無視 */ };
 
     r.start();
-  }, [recording, parsing, cmdMode, parseWithAI, searchCorp, startCmdMode]);
+  }
+
+  // ─── メモ録音 開始/停止 ───
+  const handleMicClick = useCallback(async () => {
+    if (parsing || correcting) return;
+
+    if (editMode) {
+      stopEditMode();
+      return;
+    }
+
+    if (recording) {
+      // 停止：MediaRecorder + Speech API を止める
+      mediaRef.current?.stop();
+      speechRef.current?.stop();
+      speechRef.current = null;
+      return;
+    }
+
+    // 開始：マイク取得 → MediaRecorder + Web Speech API を並走
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // MediaRecorder（Whisper用の録音）
+      const mr = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm',
+      });
+      mediaRef.current = mr;
+      chunksRef.current = [];
+
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mr.onstop = async () => {
+        // マイクストリーム解放
+        stream.getTracks().forEach(t => t.stop());
+        setRecording(false);
+
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        if (audioBlob.size < 1000) return; // 空に近い録音は無視
+
+        // Whisper文字起こし → AI解析 → 編集モード
+        setParsing(true);
+        setDisplayText(prev => prev || '文字起こし中...');
+        try {
+          const whisperText = await transcribeWithWhisper(audioBlob);
+          setDisplayText(whisperText);
+          if (whisperText.trim()) {
+            await parseWithAI(whisperText);
+            startEditMode();
+          }
+        } catch {
+          setError('音声の文字起こしに失敗しました');
+          setParsing(false);
+        }
+      };
+
+      setDisplayText('');
+      setError('');
+      setRecording(true);
+
+      mr.start();
+
+      // Web Speech API をリアルタイム表示用に並走
+      startSpeechPreview();
+    } catch (err) {
+      setError('マイクの使用が許可されていません');
+    }
+  }, [recording, parsing, correcting, editMode, transcribeWithWhisper, parseWithAI, startEditMode]);
 
   useEffect(() => {
     return () => {
-      recRef.current?.abort?.();
+      mediaRef.current?.stop();
+      speechRef.current?.stop?.();
       cmdRef.current?.stop?.();
       cmdRef.current = null;
     };
@@ -247,7 +282,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    stopCmdMode();
+    stopEditMode();
     if (!form.client_name.trim() && !form.memo.trim()) {
       return setError('会社名またはメモを入力してください');
     }
@@ -268,9 +303,6 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '登録失敗'); return; }
       setForm(INITIAL);
       setDisplayText('');
-      setCorpHits([]);
-      setCorpIndex(0);
-      textRef.current = '';
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2500);
       onCreated();
@@ -278,16 +310,21 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     finally { setSaving(false); }
   }
 
-  // ─── マイクボタンの状態 ───
-  const micBg = cmdMode ? '#10b981' : parsing ? '#94a3b8' : recording ? '#ef4444' : '#2563eb';
-  const micShadow = cmdMode
+  // ─── ボタン表示 ───
+  const micBg = editMode ? '#10b981'
+    : correcting ? '#f59e0b'
+    : parsing ? '#94a3b8'
+    : recording ? '#ef4444'
+    : '#2563eb';
+  const micShadow = editMode
     ? '0 0 0 14px rgba(16,185,129,.18), 0 6px 20px rgba(16,185,129,.4)'
     : recording
     ? '0 0 0 14px rgba(239,68,68,.18), 0 6px 20px rgba(239,68,68,.4)'
     : '0 6px 24px rgba(37,99,235,.38)';
-  const micLabel = cmdMode
-    ? '音声コマンド待機中'
-    : parsing ? 'AI解析中...'
+  const micLabel = editMode
+    ? '音声で修正できます'
+    : correcting ? '修正を反映中...'
+    : parsing ? 'Whisper解析中...'
     : recording ? '録音中… タップで停止'
     : 'タップで音声入力';
 
@@ -299,7 +336,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         <button
           type="button"
           onClick={handleMicClick}
-          disabled={parsing}
+          disabled={parsing || correcting}
           style={{
             width: 96, height: 96,
             borderRadius: '50%',
@@ -308,44 +345,52 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
             color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: micShadow,
-            cursor: parsing ? 'wait' : 'pointer',
+            cursor: (parsing || correcting) ? 'wait' : 'pointer',
             transition: 'background .2s, box-shadow .2s',
-            animation: (recording || cmdMode) ? 'pulse 1.5s infinite' : 'none',
+            animation: (recording || editMode) ? 'pulse 1.5s infinite' : 'none',
           }}
         >
-          {parsing ? <Loader size={40} style={{ animation: 'spin .8s linear infinite' }} />
-            : cmdMode ? <Volume2 size={40} />
+          {(parsing || correcting) ? <Loader size={40} style={{ animation: 'spin .8s linear infinite' }} />
+            : editMode ? <Volume2 size={40} />
             : recording ? <Square size={32} fill="#fff" />
             : <Mic size={40} />}
         </button>
-        <div style={{ marginTop: 14, fontSize: 16, color: cmdMode ? '#10b981' : '#94a3b8', fontWeight: 600 }}>
+        <div style={{
+          marginTop: 14, fontSize: 16, fontWeight: 600,
+          color: editMode ? '#10b981' : '#94a3b8',
+        }}>
           {micLabel}
         </div>
 
-        {/* コマンドモード：使い方ガイド */}
-        {cmdMode && (
+        {/* 音声編集モード：ガイド */}
+        {editMode && !editStatus && (
           <div style={{
             marginTop: 10, padding: '10px 16px',
             background: '#ecfdf5', borderRadius: 12,
             fontSize: 14, color: '#065f46', textAlign: 'center',
             lineHeight: 1.8,
           }}>
-            「<b>次</b>」→ 次の候補　「<b>戻る</b>」→ 前の候補<br />
-            「<b>登録</b>」→ 送信　「<b>やり直し</b>」→ クリア
+            修正例：「担当者は佐々木さん」「期日は今週金曜」<br />
+            「<b>登録</b>」で送信　「<b>やり直し</b>」でクリア<br />
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>マイクタップで手動編集に戻る</span>
           </div>
         )}
 
-        {/* コマンド認識テキスト */}
-        {cmdMode && cmdText && (
+        {/* 修正ステータス */}
+        {editStatus && (
           <div style={{
-            marginTop: 8, fontSize: 14, color: '#10b981', fontWeight: 600,
+            marginTop: 10, padding: '10px 16px',
+            background: editStatus.startsWith('✓') ? '#ecfdf5' : '#eff6ff',
+            borderRadius: 12, fontSize: 15, fontWeight: 600,
+            color: editStatus.startsWith('✓') ? '#065f46' : '#1e40af',
+            textAlign: 'center',
           }}>
-            🎤 「{cmdText}」
+            {editStatus}
           </div>
         )}
 
-        {/* 音声テキスト表示 */}
-        {!cmdMode && displayText && (
+        {/* 録音中テキスト（Web Speech APIプレビュー） */}
+        {!editMode && displayText && (
           <div style={{
             marginTop: 14, padding: '12px 16px',
             background: '#eff6ff', borderRadius: 12,
@@ -368,14 +413,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label className="input-label" htmlFor="memo-client">
-            会社名
-            {corpHits.length > 0 && (
-              <span style={{ fontWeight: 500, fontSize: 13, color: '#94a3b8', marginLeft: 8 }}>
-                候補 {corpIndex + 1}/{corpHits.length}
-              </span>
-            )}
-          </label>
+          <label className="input-label" htmlFor="memo-client">会社名</label>
           <input
             id="memo-client"
             name="client_name"
@@ -384,7 +422,6 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
             onChange={e => setField('client_name', e.target.value)}
             placeholder={parsing ? '解析中...' : '株式会社〇〇'}
             readOnly={parsing}
-            style={corpHits.length > 0 ? { borderColor: '#10b981', background: '#f0fdf4' } : undefined}
           />
         </div>
 
