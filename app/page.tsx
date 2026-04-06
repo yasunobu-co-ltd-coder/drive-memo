@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LogOut, Plus, Calendar } from 'lucide-react';
+import { LogOut, Plus, Calendar, Settings } from 'lucide-react';
 import { AuthScreen }   from './components/AuthScreen';
 import { UserSelect }   from './components/UserSelect';
 import { MemoTab }      from './components/MemoTab';
@@ -288,8 +288,30 @@ export default function Page() {
     <div className="wrap">
       {/* ヘッダー */}
       <header className="topbar" ref={headerRef} style={{ flexWrap: 'nowrap', overflow: 'hidden' }}>
-        <span className="brand">drive</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+          <span className="brand">drive</span>
+          <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace', lineHeight: 1 }}>
+            {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <button
+            onClick={() => { fetchUsersIfEmpty(); checkCalendarStatus(); setShowUserSwitch(true); }}
+            title="設定"
+            style={{
+              background: 'none',
+              border: '1.5px solid #e2e8f0',
+              borderRadius: 99,
+              padding: '6px 10px',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <Settings size={16} />
+          </button>
           <span className="user-badge" ref={badgeRef}>{session.companyName} / {session.userName}</span>
           <button
             onClick={handleLogout}
@@ -310,19 +332,17 @@ export default function Page() {
         </div>
       </header>
 
-      {/* バージョン番号（中央寄せ） */}
-      <div style={{ textAlign: 'center', padding: '2px 0', background: '#fafcff', borderBottom: '1px solid #f1f5f9' }}>
-        <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>
-          {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev'}
-        </span>
-      </div>
-
       {/* ユーザー切替モーダル */}
       {showUserSwitch && (
         <div className="modal-overlay" onClick={() => setShowUserSwitch(false)}>
           <div className="modal-sheet" onClick={e => e.stopPropagation()}>
             <div className="modal-handle" />
             <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 20, textAlign: 'center' }}>
+              設定
+            </div>
+
+            {/* 担当者切り替え */}
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10, color: '#334155' }}>
               担当者を切り替える
             </div>
             <div className="user-grid">
