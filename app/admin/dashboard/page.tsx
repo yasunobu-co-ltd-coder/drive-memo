@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, ChevronUp, Plus, Trash2, LogOut, Users, Building2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, LogOut, Users, Building2, KeyRound } from 'lucide-react';
 
 const ADMIN_KEY = 'drive_admin_token';
 
@@ -27,6 +27,11 @@ export default function AdminDashboard() {
 
   // ユーザー追加
   const [addUserName, setAddUserName]   = useState('');
+
+  // パスワード変更
+  const [changePwId, setChangePwId]     = useState<string | null>(null);
+  const [newPw, setNewPw]               = useState('');
+  const [pwMsg, setPwMsg]               = useState('');
 
   // ─── 認証チェック ───
   useEffect(() => {
@@ -109,6 +114,24 @@ export default function AdminDashboard() {
     });
     setAddUserName('');
     fetchUsers(companyId);
+  }
+
+  // ─── パスワード変更 ───
+  async function changePassword(companyId: string) {
+    if (!newPw || newPw.length < 4) { setPwMsg('4文字以上で入力してください'); return; }
+    const res = await fetch(`/api/admin/companies/${companyId}`, {
+      method: 'PATCH',
+      headers: headers(),
+      body: JSON.stringify({ password: newPw }),
+    });
+    if (res.ok) {
+      setPwMsg('変更しました');
+      setNewPw('');
+      setTimeout(() => { setChangePwId(null); setPwMsg(''); }, 1500);
+    } else {
+      const data = await res.json();
+      setPwMsg(data.error ?? '変更失敗');
+    }
   }
 
   // ─── ユーザー削除 ───
@@ -235,7 +258,17 @@ export default function AdminDashboard() {
                     コード: {c.code}
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    onClick={e => { e.stopPropagation(); setChangePwId(changePwId === c.id ? null : c.id); setNewPw(''); setPwMsg(''); }}
+                    title="パスワード変更"
+                    style={{
+                      background: 'none', border: '1.5px solid #cbd5e1', borderRadius: 8,
+                      padding: '6px 10px', color: '#64748b', cursor: 'pointer',
+                    }}
+                  >
+                    <KeyRound size={16} />
+                  </button>
                   <button
                     onClick={e => { e.stopPropagation(); deleteCompany(c.id, c.name); }}
                     style={{
@@ -248,6 +281,46 @@ export default function AdminDashboard() {
                   {expanded === c.id ? <ChevronUp size={20} color="#94a3b8" /> : <ChevronDown size={20} color="#94a3b8" />}
                 </div>
               </div>
+
+              {/* パスワード変更フォーム */}
+              {changePwId === c.id && (
+                <div style={{ borderTop: '1px solid #e8edf5', padding: '14px 20px', background: '#fafbfc' }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: '#475569', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <KeyRound size={16} /> パスワード変更
+                  </div>
+                  {pwMsg && (
+                    <div style={{
+                      padding: '10px 14px', borderRadius: 10, marginBottom: 10, fontSize: 14, fontWeight: 500,
+                      background: pwMsg === '変更しました' ? '#d1fae5' : '#fee2e2',
+                      color: pwMsg === '変更しました' ? '#065f46' : '#b91c1c',
+                    }}>
+                      {pwMsg}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="password"
+                      className="input-field"
+                      style={{ flex: 1, fontSize: 16, padding: '12px 14px' }}
+                      value={newPw}
+                      onChange={e => setNewPw(e.target.value)}
+                      placeholder="新しいパスワード（4文字以上）"
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); changePassword(c.id); } }}
+                    />
+                    <button
+                      onClick={() => changePassword(c.id)}
+                      style={{
+                        padding: '12px 18px', borderRadius: 12,
+                        border: 'none', background: '#2563eb', color: '#fff',
+                        fontWeight: 700, fontSize: 16, cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      変更
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* ユーザー管理（展開時） */}
               {expanded === c.id && (

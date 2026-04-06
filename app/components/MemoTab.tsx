@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Mic, Square, Loader } from 'lucide-react';
 
 type Props = {
@@ -15,10 +15,12 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
   const [saving, setSaving]       = useState(false);
   const [recording, setRecording] = useState(false);
   const [parsing, setParsing]     = useState(false);
-  const [voiceText, setVoiceText] = useState('');
+  const [displayText, setDisplayText] = useState('');   // 画面表示用
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState(false);
-  const recRef                    = useRef<any>(null);
+
+  const recRef     = useRef<any>(null);
+  const textRef    = useRef('');  // 録音テキストを即時追跡（stateのラグ回避）
 
   function setField(k: keyof typeof form, v: string) {
     setForm(f => ({ ...f, [k]: v }));
@@ -26,6 +28,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
 
   // AIで音声テキストを解析してフォームに反映
   const parseWithAI = useCallback(async (text: string) => {
+    if (!text.trim()) return;
     setParsing(true);
     try {
       const res = await fetch('/api/parse-memo', {
@@ -33,7 +36,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
         body: JSON.stringify({ text }),
       });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error('parse failed');
       const parsed = await res.json();
       setForm(f => ({
         client_name:    parsed.client_name    || f.client_name,
@@ -50,9 +53,11 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
   }, [deviceToken]);
 
   // タップで録音開始/停止を切り替え
-  const toggleVoice = useCallback(() => {
+  const handleMicClick = useCallback(() => {
+    if (parsing) return;
+
     if (recording) {
-      // 停止
+      // 停止 → onend で自動的にAI解析が走る
       recRef.current?.stop();
       return;
     }
@@ -60,48 +65,61 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     // 開始
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!SR) { alert('Chrome または Safari をお使いください'); return; }
+
     const r = new SR();
     r.lang = 'ja-JP';
-    r.interimResults = false;
+    r.interimResults = true;   // リアルタイム途中結果を表示
     r.maxAlternatives = 1;
     r.continuous = true;
     recRef.current = r;
-    r.onstart  = () => setRecording(true);
-    r.onend    = () => setRecording(false);
-    r.onerror  = () => setRecording(false);
+
+    // テキストをリセット
+    textRef.current = '';
+    setDisplayText('');
+
+    r.onstart = () => setRecording(true);
+
     r.onresult = (e: any) => {
-      // 全結果を結合
-      let fullText = '';
+      let finalText = '';
+      let interimText = '';
       for (let i = 0; i < e.results.length; i++) {
-        fullText += e.results[i][0].transcript;
+        const transcript = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          finalText += transcript;
+        } else {
+          interimText += transcript;
+        }
       }
-      setVoiceText(fullText);
+      // ref に確定テキストを保存（stopした瞬間に確実に取れる）
+      textRef.current = finalText;
+      // 画面には確定+途中を表示
+      setDisplayText(finalText + interimText);
     };
+
+    r.onend = () => {
+      setRecording(false);
+      // 確定テキストがあればAI解析
+      const captured = textRef.current;
+      if (captured.trim()) {
+        parseWithAI(captured);
+      }
+    };
+
+    r.onerror = (ev: any) => {
+      // no-speech は正常系（何も言わなかった場合）
+      if (ev.error !== 'no-speech') {
+        console.warn('SpeechRecognition error:', ev.error);
+      }
+      setRecording(false);
+    };
+
     r.start();
-  }, [recording]);
+  }, [recording, parsing, parseWithAI]);
 
-  // 録音停止後にAI解析を実行
-  const handleStopAndParse = useCallback(() => {
-    if (recording) {
-      recRef.current?.stop();
-      // onend 後に voiceText が確定するので少し待つ
-      setTimeout(() => {
-        setVoiceText(prev => {
-          if (prev) parseWithAI(prev);
-          return prev;
-        });
-      }, 300);
-    }
-  }, [recording, parseWithAI]);
-
-  // タップハンドラ
-  const handleMicClick = useCallback(() => {
-    if (recording) {
-      handleStopAndParse();
-    } else {
-      toggleVoice();
-    }
-  }, [recording, handleStopAndParse, toggleVoice]);
+  // コンポーネントアンマウント時にクリーンアップ
+  useEffect(() => {
+    return () => { recRef.current?.abort?.(); };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -125,7 +143,8 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
       });
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '登録失敗'); return; }
       setForm(INITIAL);
-      setVoiceText('');
+      setDisplayText('');
+      textRef.current = '';
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2500);
       onCreated();
@@ -164,14 +183,14 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         <div style={{ marginTop: 14, fontSize: 16, color: '#94a3b8', fontWeight: 600 }}>
           {parsing ? 'AI解析中...' : recording ? '録音中… タップで停止' : 'タップで音声入力'}
         </div>
-        {voiceText && (
+        {displayText && (
           <div style={{
             marginTop: 14, padding: '12px 16px',
             background: '#eff6ff', borderRadius: 12,
             fontSize: 15, color: '#1e40af', maxWidth: '100%', textAlign: 'center',
             lineHeight: 1.6,
           }}>
-            「{voiceText}」
+            「{displayText}」
           </div>
         )}
       </div>
@@ -194,7 +213,8 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
             className="input-field"
             value={form.client_name}
             onChange={e => setField('client_name', e.target.value)}
-            placeholder="株式会社〇〇"
+            placeholder={parsing ? '解析中...' : '株式会社〇〇'}
+            readOnly={parsing}
           />
         </div>
 
@@ -206,7 +226,8 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
             className="input-field"
             value={form.contact_person}
             onChange={e => setField('contact_person', e.target.value)}
-            placeholder="山田 様"
+            placeholder={parsing ? '解析中...' : '山田 様'}
+            readOnly={parsing}
           />
         </div>
 
@@ -218,7 +239,8 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
             className="input-field"
             value={form.memo}
             onChange={e => setField('memo', e.target.value)}
-            placeholder="案件の内容、連絡事項など..."
+            placeholder={parsing ? '音声内容を解析しています...' : '案件の内容、連絡事項など...'}
+            readOnly={parsing}
           />
         </div>
 
@@ -231,6 +253,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
             type="date"
             value={form.due_date}
             onChange={e => setField('due_date', e.target.value)}
+            readOnly={parsing}
           />
         </div>
 

@@ -32,7 +32,8 @@ export default function Page() {
   const [addUserName, setAddUserName]       = useState('');
 
   // ───────────────────────────────────────
-  // 起動時：localStorage からトークン検証
+  // 起動時：localStorage から即座に復帰（オフラインファースト）
+  // バックグラウンドで validate し、401 の場合のみログアウト
   // ───────────────────────────────────────
   useEffect(() => {
     const raw = localStorage.getItem(AUTH_KEY);
@@ -41,11 +42,31 @@ export default function Page() {
     let stored: StoredAuth;
     try { stored = JSON.parse(raw); } catch { setAuthState('auth'); return; }
 
+    // 必須フィールドがなければ無効なデータ
+    if (!stored.deviceToken || !stored.userId) {
+      localStorage.removeItem(AUTH_KEY);
+      setAuthState('auth');
+      return;
+    }
+
+    // キャッシュデータで即座にアプリ表示（タスクキル後も即復帰）
+    setSession(stored);
+    setAuthState('app');
+
+    // バックグラウンドでサーバー検証
     fetch('/api/auth/validate', {
       headers: { 'x-device-token': stored.deviceToken },
     })
       .then(async res => {
-        if (!res.ok) throw new Error('invalid');
+        if (res.status === 401) {
+          // トークンが無効（削除された等）→ ログアウト
+          localStorage.removeItem(AUTH_KEY);
+          setSession(null);
+          setAuthState('auth');
+          return;
+        }
+        if (!res.ok) return; // サーバーエラー等はキャッシュで継続
+
         const data = await res.json();
         const updated: StoredAuth = {
           deviceToken:  stored.deviceToken,
@@ -56,13 +77,10 @@ export default function Page() {
         };
         localStorage.setItem(AUTH_KEY, JSON.stringify(updated));
         setSession(updated);
-        // validate がユーザー一覧も返すのでここでセット
         if (data.users) setUsers(data.users);
-        setAuthState('app');
       })
       .catch(() => {
-        localStorage.removeItem(AUTH_KEY);
-        setAuthState('auth');
+        // ネットワークエラー → キャッシュデータで継続（ログアウトしない）
       });
   }, []);
 
@@ -107,6 +125,22 @@ export default function Page() {
     localStorage.setItem(AUTH_KEY, JSON.stringify(updated));
     setSession(updated);
     setShowUserSwitch(false);
+  }
+
+  // ───────────────────────────────────────
+  // ユーザー一覧取得（タスクキル後の復帰時用）
+  // ───────────────────────────────────────
+  async function fetchUsersIfEmpty() {
+    if (users.length > 0 || !session) return;
+    try {
+      const res = await fetch('/api/auth/validate', {
+        headers: { 'x-device-token': session.deviceToken },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.users) setUsers(data.users);
+      }
+    } catch { /* ネットワークエラーは無視 */ }
   }
 
   // ───────────────────────────────────────
@@ -306,7 +340,7 @@ export default function Page() {
           deviceToken={session.deviceToken}
           refreshSignal={refreshSignal}
           currentUserName={session.userName}
-          onSwitchUser={() => setShowUserSwitch(true)}
+          onSwitchUser={() => { fetchUsersIfEmpty(); setShowUserSwitch(true); }}
         />
       )}
 
