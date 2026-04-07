@@ -224,6 +224,8 @@ export default function Page() {
             checkCalendarStatus();
           }
         }, 1000);
+      } else {
+        setCalLoading(false);
       }
     } catch {
       setCalLoading(false);

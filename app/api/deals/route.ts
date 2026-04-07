@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   // 自分が作成 or 担当の案件のみ取得（クライアント側フィルタ不要に）
   const { data, error } = await db
     .from('deals')
-    .select('id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, importance, assignment_type, assignee, status')
+    .select('id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, importance, assignment_type, assignee, status, google_event_id')
     .eq('company_id', session.companyId)
     .or(`created_by.eq.${session.userId},assignee.eq.${session.userId}`)
     .order('created_at', { ascending: false })
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       assignee:        body.assignee        || null,
       status:          body.status          ?? '未着手',
     })
-    .select('id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, importance, assignment_type, assignee, status')
+    .select('id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, importance, assignment_type, assignee, status, google_event_id')
     .single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });

@@ -287,7 +287,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
             <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>会社名</label>
             <input
               className="input-field"
-              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14 }}
+              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14, boxSizing: 'border-box' }}
               value={editForm.client_name}
               onChange={e => setEditForm(f => ({ ...f, client_name: e.target.value }))}
             />
@@ -295,7 +295,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
             <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>担当者</label>
             <input
               className="input-field"
-              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14 }}
+              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14, boxSizing: 'border-box' }}
               value={editForm.contact_person}
               onChange={e => setEditForm(f => ({ ...f, contact_person: e.target.value }))}
             />
@@ -303,7 +303,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
             <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>メモ</label>
             <textarea
               className="input-field"
-              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14, minHeight: 120, resize: 'vertical' }}
+              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14, minHeight: 120, resize: 'vertical', boxSizing: 'border-box' }}
               value={editForm.memo}
               onChange={e => setEditForm(f => ({ ...f, memo: e.target.value }))}
             />
@@ -312,7 +312,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
             <input
               className="input-field"
               type="date"
-              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 20 }}
+              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 20, boxSizing: 'border-box' }}
               value={editForm.due_date}
               onChange={e => setEditForm(f => ({ ...f, due_date: e.target.value }))}
             />
