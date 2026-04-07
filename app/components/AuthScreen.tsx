@@ -112,9 +112,12 @@ export function AuthScreen({ onSuccess }: Props) {
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: 28 }}>
+        <div style={{ textAlign: 'center', marginTop: 28, display: 'flex', justifyContent: 'center', gap: 16 }}>
           <Link href="/admin" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>
             管理者はこちら
+          </Link>
+          <Link href="/privacy" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>
+            プライバシーポリシー
           </Link>
         </div>
       </div>
