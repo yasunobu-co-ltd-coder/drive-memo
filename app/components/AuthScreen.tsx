@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { User } from '@/lib/types';
 
@@ -19,6 +20,7 @@ export function AuthScreen({ onSuccess }: Props) {
   const [pass, setPass]       = useState('');
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw]   = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,16 +76,31 @@ export function AuthScreen({ onSuccess }: Props) {
 
           <div className="form-group">
             <label className="input-label" htmlFor="company-password">パスワード</label>
-            <input
-              id="company-password"
-              name="password"
-              className="input-field"
-              type="password"
-              value={pass}
-              onChange={e => setPass(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                id="company-password"
+                name="password"
+                className="input-field"
+                type={showPw ? 'text' : 'password'}
+                value={pass}
+                onChange={e => setPass(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                style={{ paddingRight: 44 }}
+              />
+              {pass && (
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  style={{
+                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4,
+                  }}
+                >
+                  {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              )}
+            </div>
           </div>
 
           <button
