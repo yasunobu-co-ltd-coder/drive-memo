@@ -1,6 +1,6 @@
 {
-  "name": "drive",
-  "short_name": "drive",
+  "name": "drive-memo",
+  "short_name": "drive-memo",
   "description": "案件メモ管理アプリ",
   "start_url": "/",
   "display": "standalone",
