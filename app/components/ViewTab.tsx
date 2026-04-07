@@ -1,9 +1,10 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw, Pencil, Check, Undo2, Trash2, X } from 'lucide-react';
+import { RefreshCw, Pencil, Check, Undo2, Trash2, X, Search, ArrowUpDown } from 'lucide-react';
 import { Deal } from '@/lib/types';
 
 type Filter = 'active' | 'done';
+type SortKey = 'due' | 'new' | 'old';
 
 type Props = {
   deviceToken: string;
@@ -27,6 +28,8 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
   const [pulling, setPulling]   = useState(false);
   const [editing, setEditing]   = useState<Deal | null>(null);
   const [editForm, setEditForm] = useState({ client_name: '', contact_person: '', memo: '', due_date: '' });
+  const [search, setSearch]     = useState('');
+  const [sort, setSort]         = useState<SortKey>('due');
 
   const fetchDeals = useCallback(async () => {
     setLoading(true);
@@ -90,10 +93,23 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
 
   const today = new Date().toISOString().slice(0, 10);
 
+  const SORT_LABELS: Record<SortKey, string> = { due: '期限順', new: '新しい順', old: '古い順' };
+  const SORT_KEYS: SortKey[] = ['due', 'new', 'old'];
+
   // サーバー側で自分の案件のみ返すのでユーザーフィルタ不要
   const filtered = deals
     .filter(d => filter === 'done' ? d.status === 'done' : d.status !== 'done')
+    .filter(d => {
+      if (!search.trim()) return true;
+      const q = search.trim().toLowerCase();
+      return (d.client_name || '').toLowerCase().includes(q)
+        || (d.contact_person || '').toLowerCase().includes(q)
+        || (d.memo || '').toLowerCase().includes(q);
+    })
     .sort((a, b) => {
+      if (sort === 'new') return b.created_at.localeCompare(a.created_at);
+      if (sort === 'old') return a.created_at.localeCompare(b.created_at);
+      // due: 期限順（期限なしは末尾）
       if (!a.due_date && !b.due_date) return 0;
       if (!a.due_date) return 1;
       if (!b.due_date) return -1;
@@ -136,6 +152,51 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
             color: '#94a3b8', cursor: 'pointer',
           }}
         ><RefreshCw size={20} /></button>
+      </div>
+
+      {/* 検索 + ソート */}
+      <div style={{
+        display: 'flex', gap: 8, padding: '10px 18px',
+        borderBottom: '1px solid #e8edf5', background: '#fafcff', alignItems: 'center',
+      }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <input
+            type="text"
+            placeholder="企業名・担当者・メモで検索"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 10px 10px 32px', borderRadius: 10,
+              border: '1.5px solid #e2e8f0', fontSize: 15, background: '#fff',
+              outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              style={{
+                position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2,
+              }}
+            ><X size={16} /></button>
+          )}
+        </div>
+        <button
+          onClick={() => {
+            const idx = SORT_KEYS.indexOf(sort);
+            setSort(SORT_KEYS[(idx + 1) % SORT_KEYS.length]);
+          }}
+          style={{
+            padding: '9px 12px', borderRadius: 10,
+            border: '1.5px solid #e2e8f0', background: '#fff',
+            color: '#64748b', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          <ArrowUpDown size={14} />
+          {SORT_LABELS[sort]}
+        </button>
       </div>
 
       {/* リスト */}
@@ -246,7 +307,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
                   ) : (
                     <>
                       <button
-                        onClick={e => { e.stopPropagation(); updateStatus(deal.id, '未着手'); }}
+                        onClick={e => { e.stopPropagation(); updateStatus(deal.id, '対応中'); }}
                         style={{
                           flex: 1, padding: '15px', borderRadius: 14,
                           border: 'none', background: '#2563eb', color: '#fff',

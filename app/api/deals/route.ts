@@ -40,10 +40,9 @@ export async function POST(req: NextRequest) {
       contact_person:  body.contact_person  ?? '',
       memo:            body.memo            ?? '',
       due_date:        body.due_date        || null,
-      importance:      body.importance      ?? 'mid',
       assignment_type: body.assignment_type ?? '自分で',
       assignee:        body.assignee        || null,
-      status:          body.status          ?? '未着手',
+      status:          body.status          ?? '対応中',
     })
     .select('id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, importance, assignment_type, assignee, status, google_event_id')
     .single();

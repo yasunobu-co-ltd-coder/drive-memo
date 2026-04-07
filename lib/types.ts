@@ -2,9 +2,8 @@
 // drive v2 — 共通型定義
 // ============================================================
 
-export type Importance = 'high' | 'mid' | 'low';
 export type AssignmentType = '任せる' | '自分で';
-export type DealStatus = '未着手' | '対応中' | 'done';
+export type DealStatus = '対応中' | 'done';
 
 export type Company = {
   id: string;
@@ -29,7 +28,7 @@ export type Deal = {
   contact_person: string;
   memo: string;
   due_date: string | null;
-  importance: Importance;
+  importance: string;
   assignment_type: AssignmentType;
   assignee: string | null;
   status: DealStatus;

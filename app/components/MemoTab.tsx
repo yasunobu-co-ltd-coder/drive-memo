@@ -377,10 +377,9 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         body: JSON.stringify({
           ...form,
           due_date:        form.due_date || null,
-          importance:      'mid',
           assignment_type: '自分で',
           assignee:        currentUserId,
-          status:          '未着手',
+          status:          '対応中',
         }),
       });
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '登録失敗'); return; }

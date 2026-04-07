@@ -1,12 +1,9 @@
 'use client';
 import { useState } from 'react';
 import { Trash2, ChevronDown, ChevronUp, Check } from 'lucide-react';
-import { Deal, User, Importance, DealStatus } from '@/lib/types';
+import { Deal, User, DealStatus } from '@/lib/types';
 
-const IMP_LABEL: Record<Importance, string> = { high: '高', mid: '中', low: '低' };
-const IMP_TAG:   Record<Importance, string> = { high: 'tag tag-high', mid: 'tag tag-mid', low: 'tag tag-low' };
 const STATUS_TAG: Record<DealStatus, string> = {
-  '未着手': 'tag tag-status',
   '対応中': 'tag tag-ongoing',
   'done':   'tag tag-done',
 };
@@ -37,7 +34,6 @@ export function DealCard({ deal, users, deviceToken, onUpdated, onDeleted }: Pro
     contact_person:  deal.contact_person,
     memo:            deal.memo,
     due_date:        deal.due_date ?? '',
-    importance:      deal.importance,
     assignment_type: deal.assignment_type,
     assignee:        deal.assignee ?? '',
     status:          deal.status,
@@ -108,7 +104,6 @@ export function DealCard({ deal, users, deviceToken, onUpdated, onDeleted }: Pro
           {deal.memo}
         </div>
         <div className="indicators">
-          <span className={IMP_TAG[deal.importance]}>{IMP_LABEL[deal.importance]}</span>
           <span className={STATUS_TAG[deal.status]}>
             {deal.status === 'done' ? '完了' : deal.status}
           </span>
@@ -135,7 +130,7 @@ export function DealCard({ deal, users, deviceToken, onUpdated, onDeleted }: Pro
           </div>
           {/* ステータス素早き変更 */}
           <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-            {(['未着手', '対応中', 'done'] as DealStatus[]).map(s => (
+            {(['対応中', 'done'] as DealStatus[]).map(s => (
               <button
                 key={s}
                 onClick={() => quickStatus(s)}
@@ -232,24 +227,9 @@ export function DealCard({ deal, users, deviceToken, onUpdated, onDeleted }: Pro
             />
           </div>
           <div className="form-group">
-            <label className="input-label">優先度</label>
-            <div className="segment-group">
-              {(['high', 'mid', 'low'] as Importance[]).map(imp => (
-                <button
-                  key={imp}
-                  type="button"
-                  className={`segment-btn ${form.importance === imp ? 'active' : ''}`}
-                  onClick={() => setField('importance', imp)}
-                >
-                  {IMP_LABEL[imp]}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="form-group">
             <label className="input-label">ステータス</label>
             <div className="segment-group">
-              {(['未着手', '対応中', 'done'] as DealStatus[]).map(s => (
+              {(['対応中', 'done'] as DealStatus[]).map(s => (
                 <button
                   key={s}
                   type="button"
@@ -304,7 +284,6 @@ export function DealCard({ deal, users, deviceToken, onUpdated, onDeleted }: Pro
                 contact_person: deal.contact_person,
                 memo: deal.memo,
                 due_date: deal.due_date ?? '',
-                importance: deal.importance,
                 assignment_type: deal.assignment_type,
                 assignee: deal.assignee ?? '',
                 status: deal.status,
