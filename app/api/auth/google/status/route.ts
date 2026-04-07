@@ -7,6 +7,6 @@ export async function GET(req: NextRequest) {
   const session = await validateRequest(req);
   if (!session) return unauthorizedResponse();
 
-  const connected = await isConnected(session.userId);
-  return Response.json({ connected });
+  const status = await isConnected(session.userId);
+  return Response.json(status);
 }

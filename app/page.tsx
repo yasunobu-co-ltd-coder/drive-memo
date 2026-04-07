@@ -31,6 +31,7 @@ export default function Page() {
   const [showUserSwitch, setShowUserSwitch] = useState(false);
   const [addUserName, setAddUserName]       = useState('');
   const [calConnected, setCalConnected]     = useState<boolean | null>(null);
+  const [calEmail, setCalEmail]             = useState('');
   const [calLoading, setCalLoading]         = useState(false);
   const [syncing, setSyncing]               = useState(false);
   const [syncResult, setSyncResult]         = useState('');
@@ -199,8 +200,9 @@ export default function Page() {
         headers: { 'x-device-token': session.deviceToken },
       });
       if (res.ok) {
-        const { connected } = await res.json();
+        const { connected, email } = await res.json();
         setCalConnected(connected);
+        setCalEmail(email ?? '');
       }
     } catch { /* ignore */ }
   }
@@ -417,7 +419,7 @@ export default function Page() {
                 <div style={{ fontSize: 14, color: '#94a3b8' }}>確認中...</div>
               ) : calConnected ? (
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                     <span style={{ fontSize: 14, color: '#10b981', fontWeight: 600 }}>連携中</span>
                     <button
                       onClick={handleCalendarDisconnect}
@@ -428,6 +430,9 @@ export default function Page() {
                       }}
                     >解除</button>
                   </div>
+                  {calEmail && (
+                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 10 }}>{calEmail}</div>
+                  )}
                   <button
                     onClick={handleSyncCalendar}
                     disabled={syncing}

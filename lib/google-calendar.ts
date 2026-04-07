@@ -7,7 +7,7 @@ const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID!;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
 const GOOGLE_REDIRECT_URI  = process.env.GOOGLE_REDIRECT_URI!;
 
-const SCOPES = 'https://www.googleapis.com/auth/calendar.events';
+const SCOPES = 'https://www.googleapis.com/auth/calendar';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 
@@ -47,6 +47,17 @@ export async function exchangeCode(code: string) {
     refresh_token: string;
     expires_in: number;
   }>;
+}
+
+// ─── カレンダーIDを取得 ───
+export async function getCalendarId(userId: string): Promise<string> {
+  const db = createServerClient();
+  const { data } = await db
+    .from('google_tokens')
+    .select('calendar_id')
+    .eq('user_id', userId)
+    .single();
+  return data?.calendar_id || 'primary';
 }
 
 // ─── アクセストークン取得（必要ならリフレッシュ） ───
@@ -104,6 +115,24 @@ export async function saveTokens(userId: string, tokens: { access_token: string;
   const db = createServerClient();
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
 
+  // Googleアカウントのメールアドレスを取得
+  let email: string | null = null;
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    if (res.ok) {
+      const info = await res.json();
+      email = info.email ?? null;
+    }
+  } catch { /* ignore */ }
+
+  // 「drive-memo」専用カレンダーを作成 or 取得
+  let calendarId = 'primary';
+  try {
+    calendarId = await getOrCreateDriveCalendar(tokens.access_token);
+  } catch { /* fallback to primary */ }
+
   await db
     .from('google_tokens')
     .upsert({
@@ -111,8 +140,43 @@ export async function saveTokens(userId: string, tokens: { access_token: string;
       access_token:  tokens.access_token,
       refresh_token: tokens.refresh_token,
       expires_at:    expiresAt,
+      email:         email,
+      calendar_id:   calendarId,
       updated_at:    new Date().toISOString(),
     }, { onConflict: 'user_id' });
+}
+
+// ─── 専用カレンダー作成 or 取得 ───
+async function getOrCreateDriveCalendar(accessToken: string): Promise<string> {
+  // 既存カレンダーを検索
+  const listRes = await fetch(`${CALENDAR_BASE}/users/me/calendarList`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (listRes.ok) {
+    const { items } = await listRes.json();
+    const existing = items?.find((c: { summary: string }) => c.summary === 'drive-memo');
+    if (existing) return existing.id;
+  }
+
+  // 新規作成
+  const createRes = await fetch(`${CALENDAR_BASE}/calendars`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      summary: 'drive-memo',
+      description: 'driveアプリの案件メモから自動登録される予定',
+      timeZone: 'Asia/Tokyo',
+    }),
+  });
+  if (createRes.ok) {
+    const cal = await createRes.json();
+    return cal.id;
+  }
+
+  return 'primary'; // fallback
 }
 
 // ─── カレンダー予定作成 ───
@@ -125,13 +189,14 @@ export async function createEvent(userId: string, deal: {
   const accessToken = await getAccessToken(userId);
   if (!accessToken) return null;
 
+  const calId = await getCalendarId(userId);
   const summary = deal.client_name || '案件';
   const descParts: string[] = [];
   if (deal.contact_person) descParts.push(`担当者: ${deal.contact_person}`);
   if (deal.memo) descParts.push(`\n${deal.memo}`);
   descParts.push('\n\ndrive-memo');
 
-  const res = await fetch(`${CALENDAR_BASE}/calendars/primary/events`, {
+  const res = await fetch(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calId)}/events`, {
     method: 'POST',
     headers: {
       Authorization:  `Bearer ${accessToken}`,
@@ -168,13 +233,14 @@ export async function updateEvent(userId: string, eventId: string, deal: {
   const accessToken = await getAccessToken(userId);
   if (!accessToken) return false;
 
+  const calId = await getCalendarId(userId);
   const summary = deal.client_name || '案件';
   const descParts: string[] = [];
   if (deal.contact_person) descParts.push(`担当者: ${deal.contact_person}`);
   if (deal.memo) descParts.push(`\n${deal.memo}`);
   descParts.push('\n\ndrive-memo');
 
-  const res = await fetch(`${CALENDAR_BASE}/calendars/primary/events/${eventId}`, {
+  const res = await fetch(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calId)}/events/${eventId}`, {
     method: 'PUT',
     headers: {
       Authorization:  `Bearer ${accessToken}`,
@@ -200,7 +266,8 @@ export async function deleteEvent(userId: string, eventId: string): Promise<bool
   const accessToken = await getAccessToken(userId);
   if (!accessToken) return false;
 
-  const res = await fetch(`${CALENDAR_BASE}/calendars/primary/events/${eventId}`, {
+  const calId = await getCalendarId(userId);
+  const res = await fetch(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calId)}/events/${eventId}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -209,14 +276,15 @@ export async function deleteEvent(userId: string, eventId: string): Promise<bool
 }
 
 // ─── 連携状態確認 ───
-export async function isConnected(userId: string): Promise<boolean> {
+export async function isConnected(userId: string): Promise<{ connected: boolean; email?: string }> {
   const db = createServerClient();
   const { data } = await db
     .from('google_tokens')
-    .select('id')
+    .select('id, email')
     .eq('user_id', userId)
     .single();
-  return !!data;
+  if (!data) return { connected: false };
+  return { connected: true, email: data.email ?? undefined };
 }
 
 // ─── 連携解除 ───
