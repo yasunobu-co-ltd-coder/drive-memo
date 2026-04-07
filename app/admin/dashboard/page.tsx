@@ -1,12 +1,17 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, ChevronUp, Plus, Trash2, LogOut, Users, Building2, KeyRound } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, LogOut, Users, Building2, KeyRound, Eye, EyeOff, Pencil, FileText } from 'lucide-react';
 
 const ADMIN_KEY = 'drive_admin_token';
 
 type Company = { id: string; code: string; name: string; created_at: string };
 type User    = { id: string; name: string; sort_order: number };
+type Deal    = {
+  id: string; created_at: string; company_id: string; created_by: string;
+  client_name: string; contact_person: string; memo: string;
+  due_date: string | null; status: string; google_event_id: string | null;
+};
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -32,6 +37,17 @@ export default function AdminDashboard() {
   const [changePwId, setChangePwId]     = useState<string | null>(null);
   const [newPw, setNewPw]               = useState('');
   const [pwMsg, setPwMsg]               = useState('');
+  const [showPw, setShowPw]             = useState(false);
+
+  // コード変更
+  const [changeCodeId, setChangeCodeId] = useState<string | null>(null);
+  const [newCodeVal, setNewCodeVal]     = useState('');
+  const [codeMsg, setCodeMsg]           = useState('');
+
+  // 案件一覧
+  const [deals, setDeals]               = useState<Deal[]>([]);
+  const [dealsCompanyId, setDealsCompanyId] = useState<string | null>(null);
+  const [dealsLoading, setDealsLoading] = useState(false);
 
   // ─── 認証チェック ───
   useEffect(() => {
@@ -126,11 +142,28 @@ export default function AdminDashboard() {
     });
     if (res.ok) {
       setPwMsg('変更しました');
-      setNewPw('');
-      setTimeout(() => { setChangePwId(null); setPwMsg(''); }, 1500);
+      setTimeout(() => { setChangePwId(null); setPwMsg(''); setNewPw(''); setShowPw(false); }, 1500);
     } else {
       const data = await res.json();
       setPwMsg(data.error ?? '変更失敗');
+    }
+  }
+
+  // ─── コード変更 ───
+  async function changeCode(companyId: string) {
+    if (!newCodeVal.trim()) { setCodeMsg('コードを入力してください'); return; }
+    const res = await fetch(`/api/admin/companies/${companyId}`, {
+      method: 'PATCH',
+      headers: headers(),
+      body: JSON.stringify({ code: newCodeVal.trim() }),
+    });
+    if (res.ok) {
+      setCodeMsg('変更しました');
+      fetchCompanies();
+      setTimeout(() => { setChangeCodeId(null); setCodeMsg(''); setNewCodeVal(''); }, 1500);
+    } else {
+      const data = await res.json();
+      setCodeMsg(data.error ?? '変更失敗');
     }
   }
 
@@ -142,6 +175,21 @@ export default function AdminDashboard() {
       headers: headers(),
     });
     fetchUsers(companyId);
+  }
+
+  // ─── 案件一覧取得 ───
+  async function fetchDeals(companyId: string) {
+    if (dealsCompanyId === companyId) { setDealsCompanyId(null); return; }
+    setDealsLoading(true);
+    setDealsCompanyId(companyId);
+    const res = await fetch(`/api/admin/deals?company_id=${companyId}`, {
+      headers: { 'x-admin-token': token },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setDeals(data.deals ?? []);
+    }
+    setDealsLoading(false);
   }
 
   // ─── ログアウト ───
@@ -175,7 +223,7 @@ export default function AdminDashboard() {
         </button>
       </header>
 
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '24px 16px' }}>
+      <div style={{ maxWidth: 700, margin: '0 auto', padding: '24px 16px' }}>
         {/* 会社追加ボタン */}
         <button
           onClick={() => setShowAdd(!showAdd)}
@@ -260,7 +308,17 @@ export default function AdminDashboard() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <button
-                    onClick={e => { e.stopPropagation(); setChangePwId(changePwId === c.id ? null : c.id); setNewPw(''); setPwMsg(''); }}
+                    onClick={e => { e.stopPropagation(); setChangeCodeId(changeCodeId === c.id ? null : c.id); setNewCodeVal(c.code); setCodeMsg(''); }}
+                    title="コード変更"
+                    style={{
+                      background: 'none', border: '1.5px solid #cbd5e1', borderRadius: 8,
+                      padding: '6px 10px', color: '#64748b', cursor: 'pointer',
+                    }}
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); setChangePwId(changePwId === c.id ? null : c.id); setNewPw(''); setPwMsg(''); setShowPw(false); }}
                     title="パスワード変更"
                     style={{
                       background: 'none', border: '1.5px solid #cbd5e1', borderRadius: 8,
@@ -268,6 +326,16 @@ export default function AdminDashboard() {
                     }}
                   >
                     <KeyRound size={16} />
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); fetchDeals(c.id); }}
+                    title="案件一覧"
+                    style={{
+                      background: 'none', border: '1.5px solid #cbd5e1', borderRadius: 8,
+                      padding: '6px 10px', color: '#64748b', cursor: 'pointer',
+                    }}
+                  >
+                    <FileText size={16} />
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); deleteCompany(c.id, c.name); }}
@@ -281,6 +349,45 @@ export default function AdminDashboard() {
                   {expanded === c.id ? <ChevronUp size={20} color="#94a3b8" /> : <ChevronDown size={20} color="#94a3b8" />}
                 </div>
               </div>
+
+              {/* コード変更フォーム */}
+              {changeCodeId === c.id && (
+                <div style={{ borderTop: '1px solid #e8edf5', padding: '14px 20px', background: '#fafbfc' }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: '#475569', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Pencil size={16} /> コード変更
+                  </div>
+                  {codeMsg && (
+                    <div style={{
+                      padding: '10px 14px', borderRadius: 10, marginBottom: 10, fontSize: 14, fontWeight: 500,
+                      background: codeMsg === '変更しました' ? '#d1fae5' : '#fee2e2',
+                      color: codeMsg === '変更しました' ? '#065f46' : '#b91c1c',
+                    }}>
+                      {codeMsg}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      className="input-field"
+                      style={{ flex: 1, fontSize: 16, padding: '12px 14px', boxSizing: 'border-box' }}
+                      value={newCodeVal}
+                      onChange={e => setNewCodeVal(e.target.value.toUpperCase())}
+                      placeholder="新しいコード"
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); changeCode(c.id); } }}
+                    />
+                    <button
+                      onClick={() => changeCode(c.id)}
+                      style={{
+                        padding: '12px 18px', borderRadius: 12,
+                        border: 'none', background: '#2563eb', color: '#fff',
+                        fontWeight: 700, fontSize: 16, cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      変更
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* パスワード変更フォーム */}
               {changePwId === c.id && (
@@ -298,15 +405,27 @@ export default function AdminDashboard() {
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      type="password"
-                      className="input-field"
-                      style={{ flex: 1, fontSize: 16, padding: '12px 14px' }}
-                      value={newPw}
-                      onChange={e => setNewPw(e.target.value)}
-                      placeholder="新しいパスワード（4文字以上）"
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); changePassword(c.id); } }}
-                    />
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <input
+                        type={showPw ? 'text' : 'password'}
+                        className="input-field"
+                        style={{ width: '100%', fontSize: 16, padding: '12px 44px 12px 14px', boxSizing: 'border-box' }}
+                        value={newPw}
+                        onChange={e => setNewPw(e.target.value)}
+                        placeholder="新しいパスワード（4文字以上）"
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); changePassword(c.id); } }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPw(!showPw)}
+                        style={{
+                          position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                          background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4,
+                        }}
+                      >
+                        {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
                     <button
                       onClick={() => changePassword(c.id)}
                       style={{
@@ -319,6 +438,51 @@ export default function AdminDashboard() {
                       変更
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* 案件一覧 */}
+              {dealsCompanyId === c.id && (
+                <div style={{ borderTop: '1px solid #e8edf5', padding: '16px 20px', background: '#fefce8' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, color: '#92400e', fontWeight: 600, fontSize: 16 }}>
+                    <FileText size={18} /> 案件一覧
+                  </div>
+                  {dealsLoading ? (
+                    <div className="spinner" style={{ margin: '12px auto' }} />
+                  ) : deals.length === 0 ? (
+                    <div style={{ color: '#94a3b8', fontSize: 15 }}>案件なし</div>
+                  ) : (
+                    <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                        <thead>
+                          <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
+                            <th style={{ padding: '8px 6px', color: '#64748b' }}>会社名</th>
+                            <th style={{ padding: '8px 6px', color: '#64748b' }}>担当者</th>
+                            <th style={{ padding: '8px 6px', color: '#64748b' }}>期日</th>
+                            <th style={{ padding: '8px 6px', color: '#64748b' }}>状態</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {deals.map(d => (
+                            <tr key={d.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '10px 6px', fontWeight: 600, color: '#0f172a', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {d.client_name || '-'}
+                              </td>
+                              <td style={{ padding: '10px 6px', color: '#475569' }}>{d.contact_person || '-'}</td>
+                              <td style={{ padding: '10px 6px', color: '#475569' }}>{d.due_date || '-'}</td>
+                              <td style={{ padding: '10px 6px' }}>
+                                <span style={{
+                                  padding: '3px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                                  background: d.status === 'done' ? '#d1fae5' : '#eff6ff',
+                                  color: d.status === 'done' ? '#065f46' : '#1e40af',
+                                }}>{d.status === 'done' ? '完了' : d.status}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -1,4 +1,4 @@
-// PATCH  /api/admin/companies/[id] — パスワード変更
+// PATCH  /api/admin/companies/[id] — 会社情報更新（コード・パスワード）
 // DELETE /api/admin/companies/[id] — 会社削除
 import { NextRequest } from 'next/server';
 import { validateAdminRequest, adminUnauthorized } from '@/lib/admin-auth';
@@ -12,18 +12,41 @@ export async function PATCH(
   if (!validateAdminRequest(req)) return adminUnauthorized();
 
   const { id } = await params;
-  const { password } = await req.json();
+  const body = await req.json();
+  const db = createServerClient();
+  const updates: Record<string, unknown> = {};
 
-  if (!password || typeof password !== 'string' || password.length < 4) {
-    return Response.json({ error: 'パスワードは4文字以上で入力してください' }, { status: 400 });
+  // パスワード変更
+  if (body.password) {
+    if (typeof body.password !== 'string' || body.password.length < 4) {
+      return Response.json({ error: 'パスワードは4文字以上で入力してください' }, { status: 400 });
+    }
+    updates.password_hash = hashPassword(body.password);
   }
 
-  const db = createServerClient();
-  const { error } = await db
-    .from('companies')
-    .update({ password_hash: hashPassword(password) })
-    .eq('id', id);
+  // コード変更
+  if (body.code) {
+    if (typeof body.code !== 'string' || body.code.trim().length < 1) {
+      return Response.json({ error: 'コードを入力してください' }, { status: 400 });
+    }
+    // 重複チェック
+    const { data: existing } = await db
+      .from('companies')
+      .select('id')
+      .eq('code', body.code.trim())
+      .neq('id', id)
+      .single();
+    if (existing) {
+      return Response.json({ error: 'このコードは既に使用されています' }, { status: 409 });
+    }
+    updates.code = body.code.trim();
+  }
 
+  if (Object.keys(updates).length === 0) {
+    return Response.json({ error: '変更内容がありません' }, { status: 400 });
+  }
+
+  const { error } = await db.from('companies').update(updates).eq('id', id);
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ ok: true });
 }
