@@ -57,25 +57,34 @@ export async function GET(req: NextRequest) {
 
 function html(message: string, success: boolean) {
   const color = success ? '#10b981' : '#ef4444';
-  const icon = success ? '✅' : '❌';
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>drive - カレンダー連携</title>
 <style>
   body { font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100dvh; margin: 0; background: #f8fafc; }
-  .card { text-align: center; padding: 40px; border-radius: 20px; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.08); max-width: 360px; }
-  .icon { font-size: 48px; margin-bottom: 16px; }
+  .card { text-align: center; padding: 40px; border-radius: 20px; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.08); max-width: 360px; width: 90vw; }
+  .icon { width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .icon-ok { background: #d1fae5; }
+  .icon-ng { background: #fee2e2; }
+  .icon svg { width: 28px; height: 28px; }
   .msg { font-size: 18px; font-weight: 700; color: ${color}; margin-bottom: 20px; }
-  .sub { font-size: 14px; color: #64748b; }
+  .home-btn { display: inline-block; margin-top: 8px; padding: 14px 32px; border-radius: 14px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #fff; font-weight: 700; font-size: 16px; text-decoration: none; box-shadow: 0 4px 14px rgba(37,99,235,.35); }
 </style></head><body>
 <div class="card">
-  <div class="icon">${icon}</div>
+  <div class="icon ${success ? 'icon-ok' : 'icon-ng'}">
+    ${success
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>'
+    }
+  </div>
   <div class="msg">${message}</div>
-  <div class="sub">このタブを閉じてアプリに戻ってください</div>
+  <a href="/" class="home-btn">ホームに戻る</a>
 </div>
 <script>
-  // 3秒後に自動で閉じる（PWAの場合）
-  setTimeout(() => { try { window.close(); } catch {} }, 3000);
+  // ポップアップで開かれた場合は3秒後に自動で閉じる
+  if (window.opener) {
+    setTimeout(() => { try { window.close(); } catch {} }, 3000);
+  }
 </script>
 </body></html>`;
 }
