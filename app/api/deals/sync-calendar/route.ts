@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     .from('deals')
     .select('id, client_name, contact_person, memo, due_date')
     .eq('company_id', session.companyId)
-    .or(`created_by.eq.${session.userId},assignee.eq.${session.userId}`)
+    .eq('created_by', session.userId)
     .not('due_date', 'is', null)
     .is('google_event_id', null)
     .neq('status', 'done')

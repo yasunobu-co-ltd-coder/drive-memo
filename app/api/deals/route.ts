@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     .from('deals')
     .select('id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, importance, assignment_type, assignee, status, google_event_id')
     .eq('company_id', session.companyId)
-    .or(`created_by.eq.${session.userId},assignee.eq.${session.userId}`)
+    .eq('created_by', session.userId)
     .order('created_at', { ascending: false })
     .limit(200);
 
