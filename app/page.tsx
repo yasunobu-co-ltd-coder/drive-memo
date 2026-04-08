@@ -216,11 +216,17 @@ export default function Page() {
       });
       if (res.ok) {
         const { url } = await res.json();
-        // OAuth画面を開く
+        // OAuth画面をポップアップで開く
         const popup = window.open(url, '_blank', 'width=500,height=700');
+        if (!popup || popup.closed) {
+          // ポップアップがブロックされた → 同じタブで遷移
+          setCalLoading(false);
+          window.location.href = url;
+          return;
+        }
         // ポップアップが閉じたら状態を再チェック
         const timer = setInterval(() => {
-          if (!popup || popup.closed) {
+          if (popup.closed) {
             clearInterval(timer);
             setCalLoading(false);
             checkCalendarStatus();
