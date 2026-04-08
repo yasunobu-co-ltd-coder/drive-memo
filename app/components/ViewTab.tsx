@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw, Pencil, Check, Undo2, Trash2, X, Search, ArrowUpDown } from 'lucide-react';
+import { RefreshCw, Pencil, Check, Undo2, Trash2, X, Search, ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { Deal } from '@/lib/types';
 
 type Filter = 'active' | 'done';
@@ -280,7 +280,23 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
                 </div>
               )}
 
-              {/* 展開ボタン */}
+              {/* 展開トグルバー */}
+              <div
+                onClick={() => setExpanded(isOpen ? null : deal.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  marginTop: 10, padding: '8px 0', cursor: 'pointer',
+                  color: '#94a3b8', fontSize: 13, fontWeight: 600,
+                  borderTop: '1px solid #f1f5f9',
+                }}
+              >
+                {isOpen
+                  ? <><ChevronUp size={16} /> 閉じる</>
+                  : <><ChevronDown size={16} /> {filter === 'active' ? '完了・編集' : '戻す・削除'}</>
+                }
+              </div>
+
+              {/* アクションボタン */}
               {isOpen && (
                 <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
                   {filter === 'active' ? (
