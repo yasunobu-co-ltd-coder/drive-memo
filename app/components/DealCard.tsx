@@ -81,7 +81,7 @@ export function DealCard({ deal, users, deviceToken, onUpdated, onDeleted }: Pro
         'Content-Type': 'application/json',
         'x-device-token': deviceToken,
       },
-      body: JSON.stringify({ ...deal, due_date: deal.due_date || null, assignee: deal.assignee || null, status }),
+      body: JSON.stringify({ status }),
     });
     const data = await res.json();
     if (res.ok) onUpdated(data.deal);

@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (!session) return unauthorizedResponse();
 
   // カレンダー連携チェック
-  const connected = await isConnected(session.userId);
+  const { connected } = await isConnected(session.userId);
   if (!connected) {
     return Response.json({ error: 'Googleカレンダー未連携' }, { status: 400 });
   }
