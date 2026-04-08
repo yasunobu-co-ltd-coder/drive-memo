@@ -458,7 +458,7 @@ export default function Page() {
                       setDebugResult('テスト中...');
                       try {
                         const r = await fetch('/api/debug/calendar-test', {
-                          headers: { Authorization: `Bearer ${session!.deviceToken}` },
+                          headers: { 'x-device-token': session!.deviceToken },
                         });
                         const d = await r.json();
                         setDebugResult(JSON.stringify(d, null, 2));
