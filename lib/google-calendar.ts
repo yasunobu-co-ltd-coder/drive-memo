@@ -90,6 +90,8 @@ export async function getAccessToken(userId: string): Promise<string | null> {
   });
 
   if (!res.ok) {
+    const errBody = await res.text();
+    console.error('[GoogleCal] Token refresh failed:', res.status, errBody);
     // refresh_token 無効 → トークン削除
     await db.from('google_tokens').delete().eq('id', token.id);
     return null;
@@ -214,8 +216,13 @@ export async function createEvent(userId: string, deal: {
     }),
   });
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const errBody = await res.text();
+    console.error('[GoogleCal] createEvent failed:', res.status, errBody, { userId, calId, due_date: deal.due_date });
+    return null;
+  }
   const event = await res.json();
+  console.log('[GoogleCal] Event created:', event.id, { userId, calId });
   return event.id ?? null;
 }
 
