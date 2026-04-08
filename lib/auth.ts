@@ -26,14 +26,51 @@ export async function validateRequest(request: Request): Promise<DeviceSession |
 
 /**
  * device_token を検証してセッション情報を返す。
- * 1クエリ + 1 fire-and-forget で処理（最小2 DB round-trip）
+ * JOINで1クエリに最適化（device_registrations → companies, users）。
+ * ※ last_user_id に FK制約が必要（20260408_011_performance_indexes.sql）
+ * FK未設定の場合はフォールバックで並列取得。
  */
 export async function validateToken(token: string): Promise<DeviceSession | null> {
   const db = createServerClient();
 
-  // デバイス情報・会社名・ユーザー名を1回のRPCで取得できないので、
-  // device → (company + user) を並列で取得する。
-  // ただし device がなければ後続不要なので、先に device を取得する。
+  // 1クエリでJOIN取得を試行
+  const { data: device, error } = await db
+    .from('device_registrations')
+    .select('company_id, last_user_id, companies(name), users!device_registrations_last_user_id_fkey(name)')
+    .eq('device_token', token)
+    .single();
+
+  if (error || !device?.last_user_id) {
+    // JOINが失敗した場合のフォールバック（FK未設定時）
+    if (error?.code === 'PGRST200' || error?.message?.includes('could not find')) {
+      return validateTokenFallback(token);
+    }
+    return null;
+  }
+
+  const companyName = (device as any).companies?.name;
+  const userName    = (device as any).users?.name;
+  if (!companyName || !userName) return null;
+
+  // last_active_at を非同期更新（レスポンスを待たない）
+  db.from('device_registrations')
+    .update({ last_active_at: new Date().toISOString() })
+    .eq('device_token', token)
+    .then(() => {});
+
+  return {
+    deviceToken: token,
+    companyId:   device.company_id,
+    companyName,
+    userId:      device.last_user_id,
+    userName,
+  };
+}
+
+/** FK未設定時のフォールバック（並列クエリ） */
+async function validateTokenFallback(token: string): Promise<DeviceSession | null> {
+  const db = createServerClient();
+
   const { data: device, error } = await db
     .from('device_registrations')
     .select('company_id, last_user_id')
@@ -49,18 +86,17 @@ export async function validateToken(token: string): Promise<DeviceSession | null
 
   if (!companyRes.data || !userRes.data) return null;
 
-  // last_active_at を非同期更新（レスポンスを待たない）
   db.from('device_registrations')
     .update({ last_active_at: new Date().toISOString() })
     .eq('device_token', token)
     .then(() => {});
 
   return {
-    deviceToken:  token,
-    companyId:    device.company_id,
-    companyName:  companyRes.data.name,
-    userId:       device.last_user_id,
-    userName:     userRes.data.name,
+    deviceToken: token,
+    companyId:   device.company_id,
+    companyName: companyRes.data.name,
+    userId:      device.last_user_id,
+    userName:    userRes.data.name,
   };
 }
 
