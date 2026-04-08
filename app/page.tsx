@@ -455,25 +455,27 @@ export default function Page() {
                   )}
                   <button
                     onClick={async () => {
-                      setDebugResult('テスト中...');
+                      if (!confirm('primaryカレンダーの古いイベントを削除し、drive-memoカレンダーに再登録します。よろしいですか？')) return;
+                      setDebugResult('移行中...');
                       try {
-                        const r = await fetch('/api/debug/calendar-test', {
+                        const r = await fetch('/api/deals/migrate-calendar', {
+                          method: 'POST',
                           headers: { 'x-device-token': session!.deviceToken },
                         });
                         const d = await r.json();
-                        setDebugResult(JSON.stringify(d, null, 2));
+                        setDebugResult(`完了: 旧イベント${d.deleted}件削除 → ${d.created}件を再登録`);
                       } catch (e) {
                         setDebugResult('Error: ' + String(e));
                       }
                     }}
                     style={{
                       marginTop: 8, padding: '8px 14px', borderRadius: 8,
-                      border: '1px dashed #cbd5e1', background: '#f8fafc',
-                      color: '#64748b', fontSize: 12, cursor: 'pointer',
+                      border: '1px dashed #f59e0b', background: '#fffbeb',
+                      color: '#92400e', fontSize: 12, cursor: 'pointer',
                     }}
-                  >🔍 カレンダーAPI診断</button>
+                  >🔄 drive-memoカレンダーに移行</button>
                   {debugResult && (
-                    <pre style={{ fontSize: 11, color: '#475569', marginTop: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: '#f1f5f9', padding: 10, borderRadius: 8, maxHeight: 300, overflow: 'auto' }}>{debugResult}</pre>
+                    <div style={{ fontSize: 12, color: '#475569', marginTop: 6 }}>{debugResult}</div>
                   )}
                 </div>
               ) : (
