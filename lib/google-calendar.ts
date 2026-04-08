@@ -209,7 +209,7 @@ export async function createEvent(userId: string, deal: {
       end:   { date: deal.due_date },
       reminders: {
         useDefault: false,
-        overrides: [{ method: 'popup', minutes: 540 }],
+        overrides: [{ method: 'popup', minutes: 1440 }],
       },
     }),
   });
@@ -253,7 +253,7 @@ export async function updateEvent(userId: string, eventId: string, deal: {
       end:   { date: deal.due_date },
       reminders: {
         useDefault: false,
-        overrides: [{ method: 'popup', minutes: 540 }],
+        overrides: [{ method: 'popup', minutes: 1440 }],
       },
     }),
   });
