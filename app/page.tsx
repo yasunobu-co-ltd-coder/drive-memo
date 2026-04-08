@@ -35,6 +35,7 @@ export default function Page() {
   const [calLoading, setCalLoading]         = useState(false);
   const [syncing, setSyncing]               = useState(false);
   const [syncResult, setSyncResult]         = useState('');
+  const [debugResult, setDebugResult]       = useState('');
 
   // ─── ヘッダーの文字サイズ自動調整（hooks は早期returnの前に置く） ───
   const badgeRef = useRef<HTMLSpanElement>(null);
@@ -451,6 +452,28 @@ export default function Page() {
                   >{syncing ? '同期中...' : '既存メモをカレンダーに一括登録'}</button>
                   {syncResult && (
                     <div style={{ fontSize: 13, color: '#10b981', marginTop: 6 }}>{syncResult}</div>
+                  )}
+                  <button
+                    onClick={async () => {
+                      setDebugResult('テスト中...');
+                      try {
+                        const r = await fetch('/api/debug/calendar-test', {
+                          headers: { Authorization: `Bearer ${session!.device_token}` },
+                        });
+                        const d = await r.json();
+                        setDebugResult(JSON.stringify(d, null, 2));
+                      } catch (e) {
+                        setDebugResult('Error: ' + String(e));
+                      }
+                    }}
+                    style={{
+                      marginTop: 8, padding: '8px 14px', borderRadius: 8,
+                      border: '1px dashed #cbd5e1', background: '#f8fafc',
+                      color: '#64748b', fontSize: 12, cursor: 'pointer',
+                    }}
+                  >🔍 カレンダーAPI診断</button>
+                  {debugResult && (
+                    <pre style={{ fontSize: 11, color: '#475569', marginTop: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: '#f1f5f9', padding: 10, borderRadius: 8, maxHeight: 300, overflow: 'auto' }}>{debugResult}</pre>
                   )}
                 </div>
               ) : (
