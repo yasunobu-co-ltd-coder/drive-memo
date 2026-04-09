@@ -49,8 +49,9 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
 
   // ─── Whisper文字起こし ───
   const transcribeWithWhisper = useCallback(async (audioBlob: Blob): Promise<string> => {
+    const ext = audioBlob.type.includes('mp4') ? 'm4a' : audioBlob.type.includes('ogg') ? 'ogg' : 'webm';
     const fd = new FormData();
-    fd.append('file', audioBlob, 'recording.webm');
+    fd.append('file', audioBlob, `recording.${ext}`);
     const res = await fetch('/api/transcribe', {
       method: 'POST',
       headers: { 'x-device-token': deviceToken },
@@ -223,11 +224,15 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     busyRef.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm',
-      });
+      // iOS Safari: audio/webm未対応 → audio/mp4を使用
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : '';
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRef.current = mr;
       chunksRef.current = [];
 
@@ -239,7 +244,8 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         stream.getTracks().forEach(t => t.stop());
         setRecording(false);
 
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const actualType = mr.mimeType || 'audio/webm';
+        const audioBlob = new Blob(chunksRef.current, { type: actualType });
         if (audioBlob.size < 1000) {
           busyRef.current = false;
           startWakeListener();

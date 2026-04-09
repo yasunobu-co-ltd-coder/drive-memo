@@ -54,8 +54,8 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'ファイルサイズが大きすぎます（10MB以下）' }, { status: 400 });
   }
 
-  // 音声ファイルのMIMEタイプ検証
-  if (!ALLOWED_AUDIO_TYPES.some(t => file.type.startsWith(t))) {
+  // 音声ファイルのMIMEタイプ検証（type未設定 or 音声以外は拒否）
+  if (file.type && !ALLOWED_AUDIO_TYPES.some(t => file.type.startsWith(t))) {
     return Response.json({ error: '音声ファイルのみアップロード可能です' }, { status: 400 });
   }
 
