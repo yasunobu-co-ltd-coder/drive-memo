@@ -3,8 +3,15 @@
 import { NextRequest } from 'next/server';
 import { verifyPassword } from '@/lib/password';
 import { createServerClient } from '@/lib/supabase-server';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
+  // レートリミット: IP単位で15分間に10回まで
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!checkRateLimit(`register:${ip}`, 10, 15 * 60 * 1000)) {
+    return rateLimitResponse();
+  }
+
   const { company_code, password } = await req.json();
 
   if (!company_code || !password) {
@@ -19,12 +26,13 @@ export async function POST(req: NextRequest) {
     .eq('code', company_code.trim().toUpperCase())
     .single();
 
+  // 会社コードの存在有無を隠す（統一エラーメッセージ）
   if (error || !company) {
-    return Response.json({ error: '会社コードが見つかりません' }, { status: 401 });
+    return Response.json({ error: '会社コードまたはパスワードが正しくありません' }, { status: 401 });
   }
 
   if (!verifyPassword(password, company.password_hash)) {
-    return Response.json({ error: 'パスワードが違います' }, { status: 401 });
+    return Response.json({ error: '会社コードまたはパスワードが正しくありません' }, { status: 401 });
   }
 
   const deviceToken = crypto.randomUUID();

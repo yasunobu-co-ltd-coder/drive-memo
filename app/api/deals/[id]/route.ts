@@ -18,12 +18,22 @@ export async function PATCH(
   const body = await req.json();
   const db = createServerClient();
 
-  // 送られたフィールドだけ更新（部分更新）
+  // 送られたフィールドだけ更新（部分更新）+ バリデーション
+  const MAX_LEN: Record<string, number> = { client_name: 200, contact_person: 100, memo: 5000 };
   const updates: Record<string, unknown> = {};
   const allowed = ['client_name', 'contact_person', 'memo', 'due_date', 'importance', 'assignment_type', 'assignee', 'status'] as const;
   for (const key of allowed) {
     if (key in body) {
-      updates[key] = (key === 'due_date' || key === 'assignee') ? (body[key] || null) : body[key];
+      let val = (key === 'due_date' || key === 'assignee') ? (body[key] || null) : body[key];
+      // 文字列長制限
+      if (typeof val === 'string' && MAX_LEN[key]) {
+        val = val.slice(0, MAX_LEN[key]);
+      }
+      // 期日フォーマット検証
+      if (key === 'due_date' && val && !/^\d{4}-\d{2}-\d{2}$/.test(val)) continue;
+      // ステータス値制限
+      if (key === 'status' && val !== '対応中' && val !== 'done') continue;
+      updates[key] = val;
     }
   }
 
@@ -39,7 +49,7 @@ export async function PATCH(
     .select(FIELDS)
     .single();
 
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return Response.json({ error: '案件の更新に失敗しました' }, { status: 500 });
 
   // Googleカレンダー同期（非同期、失敗しても無視）
   if (data) {
@@ -99,7 +109,7 @@ export async function DELETE(
     .eq('id', id)
     .eq('company_id', session.companyId);
 
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return Response.json({ error: '案件の削除に失敗しました' }, { status: 500 });
 
   // Googleカレンダーの予定も削除（非同期）
   if (deal?.google_event_id) {

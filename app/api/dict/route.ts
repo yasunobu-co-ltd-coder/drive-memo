@@ -10,8 +10,11 @@ export async function GET(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get('q') ?? '';
   if (raw.length < 1) return Response.json({ results: [] });
 
-  // 特殊文字をエスケープしてSQLインジェクションを防止
-  const q = raw.replace(/[%_\\]/g, c => `\\${c}`);
+  // 特殊文字をエスケープ（LIKE用 + PostgREST filter構文用）
+  const q = raw.replace(/[%_\\]/g, c => `\\${c}`)
+    .replace(/[.,()]/g, ''); // PostgRESTフィルタ構文で誤解釈される文字を除去
+
+  if (!q) return Response.json({ results: [] });
 
   const db = createServerClient();
 

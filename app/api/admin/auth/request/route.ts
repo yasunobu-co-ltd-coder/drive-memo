@@ -2,8 +2,15 @@
 // 管理者コード+パスワードを検証し、承認リンクをメール送信する
 import { NextRequest } from 'next/server';
 import { generateEmailToken } from '@/lib/admin-auth';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
+  // レートリミット: IP単位で15分間に5回まで
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!checkRateLimit(`admin-auth:${ip}`, 5, 15 * 60 * 1000)) {
+    return rateLimitResponse();
+  }
+
   const { code, password } = await req.json();
 
   if (!code || !password) {

@@ -40,8 +40,10 @@ export async function GET(req: NextRequest) {
   if (cleaned.length < 2) return Response.json({ results: [] });
 
   const kata = hiraToKata(cleaned);
-  const escaped = escapeLike(kata);
-  const escapedName = escapeLike(cleaned);
+  const escaped = escapeLike(kata).replace(/[.,()]/g, '');
+  const escapedName = escapeLike(cleaned).replace(/[.,()]/g, '');
+
+  if (!escaped && !escapedName) return Response.json({ results: [] });
 
   const db = createServerClient();
 
