@@ -36,6 +36,7 @@ export default function Page() {
   const [syncing, setSyncing]               = useState(false);
   const [syncResult, setSyncResult]         = useState('');
   const [debugResult, setDebugResult]       = useState('');
+  const [offline, setOffline]               = useState(false);
 
   // ─── ヘッダーの文字サイズ自動調整（hooks は早期returnの前に置く） ───
   const badgeRef = useRef<HTMLSpanElement>(null);
@@ -282,6 +283,16 @@ export default function Page() {
   // ───────────────────────────────────────
   // メモ登録後にリストを更新
   // ───────────────────────────────────────
+  // オフライン検知
+  useEffect(() => {
+    const goOff = () => setOffline(true);
+    const goOn  = () => setOffline(false);
+    setOffline(!navigator.onLine);
+    window.addEventListener('offline', goOff);
+    window.addEventListener('online', goOn);
+    return () => { window.removeEventListener('offline', goOff); window.removeEventListener('online', goOn); };
+  }, []);
+
   // モーダル表示時にbodyスクロールをロック（スマホでの背面スクロール防止）
   useEffect(() => {
     if (showUserSwitch) {
@@ -381,6 +392,16 @@ export default function Page() {
           </button>
         </div>
       </header>
+
+      {/* オフラインバナー */}
+      {offline && (
+        <div style={{
+          background: '#fef3c7', color: '#92400e', textAlign: 'center',
+          padding: '8px 16px', fontSize: 13, fontWeight: 600,
+        }}>
+          オフラインです — 接続を確認してください
+        </div>
+      )}
 
       {/* ユーザー切替モーダル */}
       {showUserSwitch && (

@@ -1,15 +1,16 @@
 // ============================================================
-// drive v2 — Service Worker
-// オフラインキャッシュ（ネットワーク優先）+ PWA インストール対応
+// drive-memo — Service Worker
+// ネットワーク優先 + 古いキャッシュ自動削除
 // ============================================================
 
-const CACHE_NAME = 'drive-v2';
+const CACHE_NAME = 'drive-v3';
 const STATIC_ASSETS = ['/'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
   );
+  // 新しいSWを即座にアクティブにする
   self.skipWaiting();
 });
 
@@ -18,11 +19,12 @@ self.addEventListener('activate', event => {
     caches.keys().then(names =>
       Promise.all(
         names
-          .filter(n => n.startsWith('drive-') && n !== CACHE_NAME)
+          .filter(n => n !== CACHE_NAME)
           .map(n => caches.delete(n))
       )
     )
   );
+  // 既存タブも即座に新しいSWで制御
   self.clients.claim();
 });
 
@@ -32,14 +34,17 @@ self.addEventListener('message', event => {
 
 // ネットワーク優先、失敗時にキャッシュ
 self.addEventListener('fetch', event => {
-  // API リクエストはキャッシュしない
-  if (event.request.url.includes('/api/')) return;
+  // API・POST リクエストはキャッシュしない
+  if (event.request.url.includes('/api/') || event.request.method !== 'GET') return;
 
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        // 正常レスポンスのみキャッシュ
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
         return response;
       })
       .catch(() => caches.match(event.request))
