@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     .neq('status', 'done')
     .limit(50);
 
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return Response.json({ error: 'カレンダー同期に失敗しました' }, { status: 500 });
 
   let synced = 0;
   for (const deal of deals ?? []) {

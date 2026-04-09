@@ -3,11 +3,13 @@
 import { NextRequest } from 'next/server';
 import { validateRequest, unauthorizedResponse } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_AUDIO_TYPES = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-m4a'];
 
 // 会社ごとの取引先名キャッシュ（メモリ内、プロセス寿命）
 const clientNameCache = new Map<string, { names: string; at: number }>();
@@ -39,12 +41,22 @@ export async function POST(req: NextRequest) {
   const session = await validateRequest(req);
   if (!session) return unauthorizedResponse();
 
+  // レートリミット: ユーザー単位で1分間に10回まで
+  if (!checkRateLimit(`transcribe:${session.userId}`, 10, 60 * 1000)) {
+    return rateLimitResponse();
+  }
+
   const formData = await req.formData();
   const file = formData.get('file') as File | null;
 
   if (!file) return Response.json({ error: 'No file' }, { status: 400 });
   if (file.size > MAX_FILE_SIZE) {
     return Response.json({ error: 'ファイルサイズが大きすぎます（10MB以下）' }, { status: 400 });
+  }
+
+  // 音声ファイルのMIMEタイプ検証
+  if (!ALLOWED_AUDIO_TYPES.some(t => file.type.startsWith(t))) {
+    return Response.json({ error: '音声ファイルのみアップロード可能です' }, { status: 400 });
   }
 
   // 過去の取引先名をWhisperプロンプトに含める（固有名詞の認識精度UP）

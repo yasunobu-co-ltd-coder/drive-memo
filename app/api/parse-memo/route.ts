@@ -2,6 +2,7 @@
 // 音声テキストをAIで解析し、会社名・担当者・メモ・期日に分類する
 import { NextRequest } from 'next/server';
 import { validateRequest, unauthorizedResponse } from '@/lib/auth';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -9,6 +10,11 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 export async function POST(req: NextRequest) {
   const session = await validateRequest(req);
   if (!session) return unauthorizedResponse();
+
+  // レートリミット: ユーザー単位で1分間に10回まで
+  if (!checkRateLimit(`parse:${session.userId}`, 10, 60 * 1000)) {
+    return rateLimitResponse();
+  }
 
   const { text } = await req.json();
   if (!text || typeof text !== 'string') {

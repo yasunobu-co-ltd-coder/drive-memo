@@ -33,6 +33,6 @@ export async function DELETE(
     .eq('id', userId)
     .eq('company_id', id);
 
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return Response.json({ error: 'ユーザーの削除に失敗しました' }, { status: 500 });
   return Response.json({ ok: true });
 }

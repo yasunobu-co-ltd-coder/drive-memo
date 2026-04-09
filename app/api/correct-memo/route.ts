@@ -2,6 +2,7 @@
 // 現在のフォーム内容 + 音声修正指示 → AIが変更箇所を判断して返す
 import { NextRequest } from 'next/server';
 import { validateRequest, unauthorizedResponse } from '@/lib/auth';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -10,10 +11,18 @@ export async function POST(req: NextRequest) {
   const session = await validateRequest(req);
   if (!session) return unauthorizedResponse();
 
+  // レートリミット: ユーザー単位で1分間に20回まで
+  if (!checkRateLimit(`correct:${session.userId}`, 20, 60 * 1000)) {
+    return rateLimitResponse();
+  }
+
   const { current, instruction } = await req.json();
 
   if (!instruction || typeof instruction !== 'string') {
     return Response.json({ error: 'instruction is required' }, { status: 400 });
+  }
+  if (instruction.length > 1000) {
+    return Response.json({ error: '指示が長すぎます' }, { status: 400 });
   }
 
   const today = new Date().toISOString().slice(0, 10);

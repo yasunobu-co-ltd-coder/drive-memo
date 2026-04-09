@@ -19,7 +19,7 @@ export async function GET(
     .eq('company_id', id)
     .order('sort_order', { ascending: true });
 
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return Response.json({ error: '操作に失敗しました' }, { status: 500 });
   return Response.json({ users: data ?? [] });
 }
 
@@ -51,6 +51,6 @@ export async function POST(
     .select('id, name, sort_order')
     .single();
 
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return Response.json({ error: '操作に失敗しました' }, { status: 500 });
   return Response.json({ user: data }, { status: 201 });
 }

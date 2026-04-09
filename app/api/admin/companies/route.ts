@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     .select('id, code, name, created_at')
     .order('created_at', { ascending: false });
 
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return Response.json({ error: 'データ取得に失敗しました' }, { status: 500 });
   return Response.json({ companies: data ?? [] });
 }
 
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (companyError) {
-    return Response.json({ error: companyError.message }, { status: 500 });
+    return Response.json({ error: '会社の登録に失敗しました' }, { status: 500 });
   }
 
   let createdUsers: unknown[] = [];

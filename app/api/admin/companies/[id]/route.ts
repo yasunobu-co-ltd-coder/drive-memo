@@ -47,7 +47,7 @@ export async function PATCH(
   }
 
   const { error } = await db.from('companies').update(updates).eq('id', id);
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return Response.json({ error: '操作に失敗しました' }, { status: 500 });
   return Response.json({ ok: true });
 }
 
@@ -66,7 +66,7 @@ export async function DELETE(
   await db.from('users').delete().eq('company_id', id);
 
   const { error } = await db.from('companies').delete().eq('id', id);
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return Response.json({ error: '操作に失敗しました' }, { status: 500 });
 
   return Response.json({ ok: true });
 }
