@@ -81,8 +81,9 @@ function html(message: string, success: boolean) {
   <a href="/" class="home-btn">ホームに戻る</a>
 </div>
 <script>
-  // ポップアップで開かれた場合は3秒後に自動で閉じる
+  // ポップアップで開かれた場合、親ウィンドウに完了通知を送って閉じる
   if (window.opener) {
+    try { window.opener.postMessage('google-auth-done', '*'); } catch {}
     setTimeout(() => { try { window.close(); } catch {} }, 3000);
   }
 </script>

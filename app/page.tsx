@@ -225,14 +225,21 @@ export default function Page() {
           window.location.href = url;
           return;
         }
-        // ポップアップが閉じたら状態を再チェック
-        const timer = setInterval(() => {
-          if (popup.closed) {
-            clearInterval(timer);
+        // callback側からpostMessageで完了通知を受け取る
+        const onMessage = (ev: MessageEvent) => {
+          if (ev.data === 'google-auth-done') {
+            window.removeEventListener('message', onMessage);
             setCalLoading(false);
             checkCalendarStatus();
           }
-        }, 1000);
+        };
+        window.addEventListener('message', onMessage);
+        // フォールバック: 30秒後にリスナー解除
+        setTimeout(() => {
+          window.removeEventListener('message', onMessage);
+          setCalLoading(false);
+          checkCalendarStatus();
+        }, 30000);
       } else {
         setCalLoading(false);
       }
@@ -275,6 +282,14 @@ export default function Page() {
   // ───────────────────────────────────────
   // メモ登録後にリストを更新
   // ───────────────────────────────────────
+  // モーダル表示時にbodyスクロールをロック（スマホでの背面スクロール防止）
+  useEffect(() => {
+    if (showUserSwitch) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [showUserSwitch]);
+
   function onMemoCreated() {
     setRefreshSignal(v => v + 1);
     setActiveTab('view');
@@ -395,6 +410,8 @@ export default function Page() {
             {/* 担当者追加 */}
             <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
               <input
+                id="add-user-name"
+                name="user_name"
                 className="input-field"
                 style={{ flex: 1, fontSize: 16, padding: '12px 14px' }}
                 value={addUserName}

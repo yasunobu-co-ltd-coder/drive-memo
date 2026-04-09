@@ -91,6 +91,14 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
     }
   }
 
+  // モーダル表示時にbodyスクロールをロック
+  useEffect(() => {
+    if (editing) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [editing]);
+
   const today = new Date().toISOString().slice(0, 10);
 
   const SORT_LABELS: Record<SortKey, string> = { due: '期限順', new: '新しい順', old: '古い順' };
@@ -163,12 +171,14 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
           <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
           <input
             type="text"
+            name="search"
+            id="deal-search"
             placeholder="企業名・担当者・メモで検索"
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
               width: '100%', padding: '10px 10px 10px 32px', borderRadius: 10,
-              border: '1.5px solid #e2e8f0', fontSize: 15, background: '#fff',
+              border: '1.5px solid #e2e8f0', fontSize: 16, background: '#fff',
               outline: 'none', boxSizing: 'border-box',
             }}
           />
@@ -245,7 +255,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
                 onClick={() => setExpanded(isOpen ? null : deal.id)}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}
               >
-                <div style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', lineHeight: 1.3, flex: 1, wordBreak: 'break-all' }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', lineHeight: 1.3, flex: 1, overflowWrap: 'break-word' }}>
                   {deal.client_name || '（会社名なし）'}
                 </div>
                 {due && (
@@ -273,7 +283,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
               {deal.memo && (
                 <div style={{
                   fontSize: 17, color: '#334155', lineHeight: 1.75,
-                  marginTop: 10, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                  marginTop: 10, whiteSpace: 'pre-wrap', overflowWrap: 'break-word',
                   userSelect: 'text', WebkitUserSelect: 'text',
                 }}>
                   {deal.memo}
@@ -361,32 +371,40 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
               </button>
             </div>
 
-            <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>会社名</label>
+            <label htmlFor="edit-client" style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>会社名</label>
             <input
+              id="edit-client"
+              name="client_name"
               className="input-field"
               style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14, boxSizing: 'border-box' }}
               value={editForm.client_name}
               onChange={e => setEditForm(f => ({ ...f, client_name: e.target.value }))}
             />
 
-            <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>担当者</label>
+            <label htmlFor="edit-contact" style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>担当者</label>
             <input
+              id="edit-contact"
+              name="contact_person"
               className="input-field"
               style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14, boxSizing: 'border-box' }}
               value={editForm.contact_person}
               onChange={e => setEditForm(f => ({ ...f, contact_person: e.target.value }))}
             />
 
-            <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>メモ</label>
+            <label htmlFor="edit-memo" style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>メモ</label>
             <textarea
+              id="edit-memo"
+              name="memo"
               className="input-field"
               style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14, minHeight: 120, resize: 'vertical', boxSizing: 'border-box' }}
               value={editForm.memo}
               onChange={e => setEditForm(f => ({ ...f, memo: e.target.value }))}
             />
 
-            <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>期日</label>
+            <label htmlFor="edit-due" style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>期日</label>
             <input
+              id="edit-due"
+              name="due_date"
               className="input-field"
               type="date"
               style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 20, boxSizing: 'border-box' }}

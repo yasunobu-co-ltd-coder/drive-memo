@@ -16,7 +16,7 @@
   --card-radius:  20px;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 body {
   margin: 0;
@@ -26,6 +26,8 @@ body {
     'Noto Sans JP', 'Yu Gothic', sans-serif;
   -webkit-font-smoothing: antialiased;
   font-size: 20px; /* モバイル向け：大きめ基準 */
+  overscroll-behavior: none; /* ブラウザ標準のpull-to-refreshを無効化 */
+  touch-action: manipulation; /* 300msタップ遅延を除去 */
 }
 
 /* ===== ラッパー（モバイル中央寄せ） ===== */
@@ -109,14 +111,14 @@ body {
   font-weight: 700;
   color: #0f172a;
   line-height: 1.3;
-  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .deal-contact {
   font-size: 16px;
   color: var(--text-sub);
   margin-top: 2px;
-  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .deal-memo {
@@ -125,7 +127,7 @@ body {
   line-height: 1.65;
   margin: 12px 0 14px;
   white-space: pre-wrap;
-  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .due-badge {
