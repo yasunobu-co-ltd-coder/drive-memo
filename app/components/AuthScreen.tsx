@@ -120,6 +120,9 @@ export function AuthScreen({ onSuccess }: Props) {
           <Link href="/privacy" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>
             プライバシーポリシー
           </Link>
+          <Link href="/terms" style={{ color: '#94a3b8', fontSize: 13, textDecoration: 'none' }}>
+            利用規約
+          </Link>
         </div>
       </div>
     </div>

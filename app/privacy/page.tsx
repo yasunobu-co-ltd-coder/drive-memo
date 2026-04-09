@@ -7,7 +7,7 @@ export default function PrivacyPolicy() {
     }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>プライバシーポリシー</h1>
 
-      <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24 }}>最終更新日: 2026年4月7日</p>
+      <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24 }}>最終更新日: 2026年4月10日</p>
 
       <Section title="1. 運営者">
         本アプリ「drive」（以下「本アプリ」）は、安信工業株式会社（以下「当社」）が運営しています。
@@ -19,6 +19,7 @@ export default function PrivacyPolicy() {
           <li>会社コード・パスワード（認証目的）</li>
           <li>ユーザー名（表示・識別目的）</li>
           <li>案件メモ情報（会社名、担当者名、メモ内容、期日等）</li>
+          <li>音声データ（音声入力機能を利用する場合、文字起こし処理のため一時的に送信されます。音声データはサーバーに保存されません）</li>
           <li>Googleアカウント情報（Googleカレンダー連携を利用する場合のみ）</li>
         </ul>
       </Section>
@@ -46,8 +47,17 @@ export default function PrivacyPolicy() {
       </Section>
 
       <Section title="7. お問い合わせ">
-        プライバシーに関するお問い合わせは、当社までご連絡ください。
+        プライバシーに関するお問い合わせは、以下までご連絡ください。
+        <div style={{ marginTop: 8 }}>
+          安信工業株式会社<br />
+          メール: yasunobu.co.ltd@gmail.com
+        </div>
       </Section>
+
+      <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid #e2e8f0', fontSize: 14, color: '#64748b', display: 'flex', gap: 16 }}>
+        <a href="/terms" style={{ color: '#2563eb', textDecoration: 'none' }}>利用規約</a>
+        <a href="/" style={{ color: '#2563eb', textDecoration: 'none' }}>ホームに戻る</a>
+      </div>
     </div>
   );
 }
