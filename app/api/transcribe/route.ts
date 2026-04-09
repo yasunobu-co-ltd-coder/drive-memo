@@ -15,7 +15,7 @@ const ALLOWED_AUDIO_TYPES = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg
 const clientNameCache = new Map<string, { names: string; at: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5分
 
-/** 過去の取引先名を取得してWhisperプロンプト用文字列にする */
+/** 自社の過去案件から固有名詞を取得してWhisperプロンプト用文字列にする */
 async function getClientHints(companyId: string): Promise<string> {
   const cached = clientNameCache.get(companyId);
   if (cached && Date.now() - cached.at < CACHE_TTL) return cached.names;
@@ -23,15 +23,22 @@ async function getClientHints(companyId: string): Promise<string> {
   const db = createServerClient();
   const { data } = await db
     .from('deals')
-    .select('client_name')
+    .select('client_name, contact_person')
     .eq('company_id', companyId)
-    .not('client_name', 'eq', '')
     .order('created_at', { ascending: false })
-    .limit(100);
+    .limit(200);
 
-  // ユニークな会社名を抽出
-  const unique = [...new Set((data ?? []).map(d => d.client_name).filter(Boolean))];
-  const names = unique.slice(0, 50).join('、');
+  const rows = data ?? [];
+
+  // 取引先名（ユニーク）
+  const clients = [...new Set(rows.map(d => d.client_name).filter(Boolean))];
+  // 担当者名（ユニーク）
+  const contacts = [...new Set(rows.map(d => d.contact_person).filter(Boolean))];
+
+  const parts: string[] = [];
+  if (clients.length > 0) parts.push(clients.slice(0, 40).join('、'));
+  if (contacts.length > 0) parts.push(contacts.slice(0, 20).join('、'));
+  const names = parts.join('、');
 
   clientNameCache.set(companyId, { names, at: Date.now() });
   return names;
