@@ -26,6 +26,9 @@ export async function POST(req: NextRequest) {
   if (!code || !name || !password) {
     return Response.json({ error: 'code / name / password は必須です' }, { status: 400 });
   }
+  if (typeof password !== 'string' || password.length < 8) {
+    return Response.json({ error: 'パスワードは8文字以上で入力してください' }, { status: 400 });
+  }
 
   const db = createServerClient();
   const passwordHash = hashPassword(password);

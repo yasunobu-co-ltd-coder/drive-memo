@@ -30,13 +30,16 @@ export async function validateRequest(request: Request): Promise<DeviceSession |
  * ※ last_user_id に FK制約が必要（20260408_011_performance_indexes.sql）
  * FK未設定の場合はフォールバックで並列取得。
  */
+// deviceTokenの有効期限（最終アクセスから30日）
+const TOKEN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
 export async function validateToken(token: string): Promise<DeviceSession | null> {
   const db = createServerClient();
 
   // 1クエリでJOIN取得を試行
   const { data: device, error } = await db
     .from('device_registrations')
-    .select('company_id, last_user_id, companies(name), users!device_registrations_last_user_id_fkey(name)')
+    .select('company_id, last_user_id, last_active_at, companies(name), users!device_registrations_last_user_id_fkey(name)')
     .eq('device_token', token)
     .single();
 
@@ -48,11 +51,21 @@ export async function validateToken(token: string): Promise<DeviceSession | null
     return null;
   }
 
+  // 30日間未使用のトークンは無効
+  if (device.last_active_at) {
+    const lastActive = new Date(device.last_active_at).getTime();
+    if (Date.now() - lastActive > TOKEN_MAX_AGE_MS) {
+      // 期限切れトークンを削除
+      db.from('device_registrations').delete().eq('device_token', token).then(() => {});
+      return null;
+    }
+  }
+
   const companyName = (device as any).companies?.name;
   const userName    = (device as any).users?.name;
   if (!companyName || !userName) return null;
 
-  // last_active_at を非同期更新（レスポンスを待たない）
+  // last_active_at を非同期更新（スライディング有効期限）
   db.from('device_registrations')
     .update({ last_active_at: new Date().toISOString() })
     .eq('device_token', token)
@@ -73,11 +86,20 @@ async function validateTokenFallback(token: string): Promise<DeviceSession | nul
 
   const { data: device, error } = await db
     .from('device_registrations')
-    .select('company_id, last_user_id')
+    .select('company_id, last_user_id, last_active_at')
     .eq('device_token', token)
     .single();
 
   if (error || !device?.last_user_id) return null;
+
+  // 30日間未使用のトークンは無効
+  if (device.last_active_at) {
+    const lastActive = new Date(device.last_active_at).getTime();
+    if (Date.now() - lastActive > TOKEN_MAX_AGE_MS) {
+      db.from('device_registrations').delete().eq('device_token', token).then(() => {});
+      return null;
+    }
+  }
 
   const [companyRes, userRes] = await Promise.all([
     db.from('companies').select('name').eq('id', device.company_id).single(),

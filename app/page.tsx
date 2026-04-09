@@ -35,7 +35,6 @@ export default function Page() {
   const [calLoading, setCalLoading]         = useState(false);
   const [syncing, setSyncing]               = useState(false);
   const [syncResult, setSyncResult]         = useState('');
-  const [debugResult, setDebugResult]       = useState('');
   const [offline, setOffline]               = useState(false);
 
   // ─── ヘッダーの文字サイズ自動調整（hooks は早期returnの前に置く） ───
@@ -228,6 +227,7 @@ export default function Page() {
         }
         // callback側からpostMessageで完了通知を受け取る
         const onMessage = (ev: MessageEvent) => {
+          if (ev.origin !== window.location.origin) return;
           if (ev.data === 'google-auth-done') {
             window.removeEventListener('message', onMessage);
             setCalLoading(false);
@@ -490,30 +490,6 @@ export default function Page() {
                   >{syncing ? '同期中...' : '既存メモをカレンダーに一括登録'}</button>
                   {syncResult && (
                     <div style={{ fontSize: 13, color: '#10b981', marginTop: 6 }}>{syncResult}</div>
-                  )}
-                  <button
-                    onClick={async () => {
-                      if (!confirm('primaryカレンダーの古いイベントを削除し、drive-memoカレンダーに再登録します。よろしいですか？')) return;
-                      setDebugResult('移行中...');
-                      try {
-                        const r = await fetch('/api/deals/migrate-calendar', {
-                          method: 'POST',
-                          headers: { 'x-device-token': session!.deviceToken },
-                        });
-                        const d = await r.json();
-                        setDebugResult(`完了: 旧イベント${d.deleted}件削除 → ${d.created}件を再登録`);
-                      } catch (e) {
-                        setDebugResult('Error: ' + String(e));
-                      }
-                    }}
-                    style={{
-                      marginTop: 8, padding: '8px 14px', borderRadius: 8,
-                      border: '1px dashed #f59e0b', background: '#fffbeb',
-                      color: '#92400e', fontSize: 12, cursor: 'pointer',
-                    }}
-                  >🔄 drive-memoカレンダーに移行</button>
-                  {debugResult && (
-                    <div style={{ fontSize: 12, color: '#475569', marginTop: 6 }}>{debugResult}</div>
                   )}
                 </div>
               ) : (

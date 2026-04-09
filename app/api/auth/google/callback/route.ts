@@ -1,8 +1,16 @@
 // GET /api/auth/google/callback — Google OAuthコールバック
 // 認可コードを受け取り、トークンを保存してアプリに戻る
 import { NextRequest } from 'next/server';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { validateToken } from '@/lib/auth';
 import { exchangeCode, saveTokens } from '@/lib/google-calendar';
+
+function verifyState(payload: string, sig: string): boolean {
+  const secret = process.env.ADMIN_SECRET || process.env.GOOGLE_CLIENT_SECRET!;
+  const expected = createHmac('sha256', secret).update(payload).digest('hex');
+  if (sig.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+}
 
 export async function GET(req: NextRequest) {
   const code  = req.nextUrl.searchParams.get('code');
@@ -16,11 +24,16 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // stateからセッション情報を復元
+  // stateからセッション情報を復元（HMAC署名を検証）
   let userId: string;
   let deviceToken: string;
   try {
-    const parsed = JSON.parse(Buffer.from(state, 'base64url').toString());
+    const dotIdx = state.lastIndexOf('.');
+    if (dotIdx === -1) throw new Error('no signature');
+    const payload = state.slice(0, dotIdx);
+    const sig = state.slice(dotIdx + 1);
+    if (!verifyState(payload, sig)) throw new Error('invalid signature');
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString());
     userId = parsed.userId;
     deviceToken = parsed.deviceToken;
   } catch {
@@ -83,7 +96,7 @@ function html(message: string, success: boolean) {
 <script>
   // ポップアップで開かれた場合、親ウィンドウに完了通知を送って閉じる
   if (window.opener) {
-    try { window.opener.postMessage('google-auth-done', '*'); } catch {}
+    try { window.opener.postMessage('google-auth-done', window.location.origin); } catch {}
     setTimeout(() => { try { window.close(); } catch {} }, 3000);
   }
 </script>

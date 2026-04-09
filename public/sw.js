@@ -3,7 +3,7 @@
 // ネットワーク優先 + 古いキャッシュ自動削除
 // ============================================================
 
-const CACHE_NAME = 'drive-v3';
+const CACHE_NAME = 'drive-v4';
 const STATIC_ASSETS = ['/'];
 
 self.addEventListener('install', event => {

@@ -18,8 +18,8 @@ export async function PATCH(
 
   // パスワード変更
   if (body.password) {
-    if (typeof body.password !== 'string' || body.password.length < 4) {
-      return Response.json({ error: 'パスワードは4文字以上で入力してください' }, { status: 400 });
+    if (typeof body.password !== 'string' || body.password.length < 8) {
+      return Response.json({ error: 'パスワードは8文字以上で入力してください' }, { status: 400 });
     }
     updates.password_hash = hashPassword(body.password);
   }

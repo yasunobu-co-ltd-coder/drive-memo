@@ -28,8 +28,10 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
   const [pulling, setPulling]   = useState(false);
   const [editing, setEditing]   = useState<Deal | null>(null);
   const [editForm, setEditForm] = useState({ client_name: '', contact_person: '', memo: '', due_date: '' });
+  const [editSaving, setEditSaving] = useState(false);
   const [search, setSearch]     = useState('');
   const [sort, setSort]         = useState<SortKey>('due');
+  const listRef = useRef<HTMLDivElement>(null);
 
   const fetchDeals = useCallback(async () => {
     setLoading(true);
@@ -45,6 +47,8 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
 
   function onTouchStart(e: React.TouchEvent) { pullStartY.current = e.touches[0].clientY; }
   function onTouchEnd(e: React.TouchEvent) {
+    const el = listRef.current;
+    if (el && el.scrollTop > 0) return; // スクロール途中では発動しない
     if (e.changedTouches[0].clientY - pullStartY.current > 60 && !loading) {
       setPulling(true);
       fetchDeals().finally(() => setPulling(false));
@@ -78,17 +82,20 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
   }
 
   async function saveEdit() {
-    if (!editing) return;
-    const res = await fetch(`/api/deals/${editing.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
-      body: JSON.stringify(editForm),
-    });
-    if (res.ok) {
-      const { deal: u } = await res.json();
-      setDeals(ds => ds.map(d => d.id === editing.id ? u : d));
-      setEditing(null);
-    }
+    if (!editing || editSaving) return;
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/deals/${editing.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
+        body: JSON.stringify(editForm),
+      });
+      if (res.ok) {
+        const { deal: u } = await res.json();
+        setDeals(ds => ds.map(d => d.id === editing.id ? u : d));
+        setEditing(null);
+      }
+    } finally { setEditSaving(false); }
   }
 
   // モーダル表示時にbodyスクロールをロック
@@ -212,6 +219,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
       {/* リスト */}
       <div
         style={{ padding: '16px 18px', flex: 1, overflowY: 'auto' }}
+        ref={listRef}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
@@ -414,13 +422,15 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
 
             <button
               onClick={saveEdit}
+              disabled={editSaving}
               style={{
                 width: '100%', padding: '15px', borderRadius: 14,
                 border: 'none', background: '#2563eb', color: '#fff',
                 fontWeight: 700, fontSize: 18, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                opacity: editSaving ? 0.6 : 1,
               }}
-            ><Check size={20} /> 保存</button>
+            ><Check size={20} /> {editSaving ? '保存中...' : '保存'}</button>
           </div>
         </div>
       )}

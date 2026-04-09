@@ -1,8 +1,14 @@
 // POST /api/admin/auth/request
 // 管理者コード+パスワードを検証し、承認リンクをメール送信する
 import { NextRequest } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { generateEmailToken } from '@/lib/admin-auth';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
+
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
 
 export async function POST(req: NextRequest) {
   // レートリミット: IP単位で15分間に5回まで
@@ -17,8 +23,10 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: '管理者コードとパスワードを入力してください' }, { status: 400 });
   }
 
-  // 環境変数と照合
-  if (code !== process.env.ADMIN_CODE || password !== process.env.ADMIN_PASSWORD) {
+  // 環境変数と照合（タイミングセーフ比較）
+  const expectedCode = process.env.ADMIN_CODE ?? '';
+  const expectedPass = process.env.ADMIN_PASSWORD ?? '';
+  if (!expectedCode || !expectedPass || !safeCompare(code, expectedCode) || !safeCompare(password, expectedPass)) {
     return Response.json({ error: '管理者コードまたはパスワードが違います' }, { status: 401 });
   }
 

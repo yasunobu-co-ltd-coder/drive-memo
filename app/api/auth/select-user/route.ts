@@ -3,8 +3,14 @@
 // device_token + company_id の一致で認証（初回はまだ last_user_id が未設定なので validateRequest は使えない）
 import { NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/supabase-server';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!checkRateLimit(`select-user:${ip}`, 20, 60 * 1000)) {
+    return rateLimitResponse();
+  }
+
   const { device_token, user_id, company_id } = await req.json();
 
   if (!device_token || !user_id || !company_id) {
