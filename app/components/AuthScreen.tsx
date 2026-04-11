@@ -67,7 +67,7 @@ export function AuthScreen({ onSuccess }: Props) {
               type="text"
               value={code}
               onChange={e => setCode(e.target.value.toUpperCase())}
-              placeholder="ANSIN001"
+              placeholder=""
               autoCapitalize="none"
               autoComplete="off"
               autoCorrect="off"
