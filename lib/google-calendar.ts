@@ -222,7 +222,6 @@ export async function createEvent(userId: string, deal: {
     return null;
   }
   const event = await res.json();
-  console.log('[GoogleCal] Event created:', event.id, { userId, calId });
   return event.id ?? null;
 }
 

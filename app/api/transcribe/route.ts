@@ -31,9 +31,9 @@ async function getClientHints(companyId: string): Promise<{ clients: string[]; c
     .order('created_at', { ascending: false })
     .limit(200);
 
-  const rows = data ?? [];
-  const clients = [...new Set(rows.map(d => d.client_name).filter(Boolean))];
-  const contacts = [...new Set(rows.map(d => d.contact_person).filter(Boolean))];
+  const rows = (data ?? []) as { client_name: string | null; contact_person: string | null }[];
+  const clients = [...new Set(rows.map(d => d.client_name).filter((v): v is string => !!v))];
+  const contacts = [...new Set(rows.map(d => d.contact_person).filter((v): v is string => !!v))];
 
   clientNameCache.set(companyId, { clients, contacts, at: Date.now() });
   return { clients, contacts };
@@ -79,14 +79,11 @@ export async function POST(req: NextRequest) {
     prompt += `担当者は${contacts.slice(0, 15).join('、')}。`;
   }
 
-  const finalPrompt = prompt.slice(0, 500);
-  console.log('[Whisper] companyId:', session.companyId, 'clients:', clients.length, 'contacts:', contacts.length, 'prompt:', finalPrompt);
-
   const transcription = await openai.audio.transcriptions.create({
     file,
     model:    'whisper-1',
     language: 'ja',
-    prompt:   finalPrompt,
+    prompt:   prompt.slice(0, 500),
   });
 
   return Response.json({ text: transcription.text });

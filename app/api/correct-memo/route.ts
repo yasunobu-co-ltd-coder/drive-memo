@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
   "client_name": "新しい会社名",     // 変更する場合のみ
   "contact_person": "新しい担当者",   // 変更する場合のみ
   "memo": "新しいメモ",              // 変更する場合のみ
-  "due_date": "2026-04-11"           // 変更する場合のみ
+  "due_date": "YYYY-MM-DD"            // 変更する場合のみ
 }
 変更がない場合は空オブジェクト {} を返してください。`,
       },
