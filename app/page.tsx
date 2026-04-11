@@ -373,7 +373,7 @@ export default function Page() {
           >
             <Settings size={16} />
           </button>
-          <span className="user-badge" ref={badgeRef}>{session.companyName} / {session.userName}</span>
+          <span className="user-badge" ref={badgeRef}>{session.userName}</span>
           <button
             onClick={handleLogout}
             title="ログアウト"
@@ -410,6 +410,11 @@ export default function Page() {
             <div className="modal-handle" />
             <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 20, textAlign: 'center' }}>
               設定
+            </div>
+
+            {/* 会社名 */}
+            <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 16, textAlign: 'center' }}>
+              {session.companyName}
             </div>
 
             {/* 担当者切り替え */}
@@ -537,6 +542,7 @@ export default function Page() {
       {/* コンテンツ */}
       {activeTab === 'memo' && (
         <MemoTab
+          key={session.userId}
           currentUserId={session.userId}
           deviceToken={session.deviceToken}
           onCreated={onMemoCreated}
