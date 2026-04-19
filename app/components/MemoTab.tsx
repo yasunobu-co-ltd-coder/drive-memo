@@ -203,11 +203,11 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
       }
       setDisplayText(text);
 
-      // 「終了」で録音を停止
+      // 「停止」「終了」で録音を停止
       const last = e.results[e.results.length - 1];
       if (last.isFinal) {
         const finalText = last[0].transcript.trim();
-        if (/終了|しゅうりょう|ストップ|おわり|終わり/.test(finalText)) {
+        if (/停止|ていし|終了|しゅうりょう|ストップ|おわり|終わり/.test(finalText)) {
           mediaRef.current?.stop();
           r.stop();
           speechRef.current = null;
