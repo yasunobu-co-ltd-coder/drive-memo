@@ -370,6 +370,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
   // ─── 登録完了後にウェイクワード待機に戻る ───
   const handleSubmitAndResume = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return; // 多重送信防止（音声「登録」コマンドの連続発火対策）
     setError('');
     stopEditMode();
     if (!form.client_name.trim() && !form.memo.trim()) {
@@ -400,7 +401,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
       onCreated();
     } catch { setError('通信エラーが発生しました'); }
     finally { setSaving(false); }
-  }, [form, deviceToken, currentUserId, onCreated, startWakeListener]);
+  }, [form, deviceToken, currentUserId, onCreated, startWakeListener, saving]);
 
   // ─── マイクタップ ───
   const handleMicClick = useCallback(async () => {
