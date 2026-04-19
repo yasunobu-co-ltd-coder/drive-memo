@@ -1,7 +1,7 @@
 // PATCH /api/auth/switch-user
 // 端末のアクティブユーザーを切り替える
 import { NextRequest } from 'next/server';
-import { validateRequest, unauthorizedResponse } from '@/lib/auth';
+import { validateRequest, unauthorizedResponse, invalidateSessionCache } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
 
 export async function PATCH(req: NextRequest) {
@@ -29,6 +29,9 @@ export async function PATCH(req: NextRequest) {
     .from('device_registrations')
     .update({ last_user_id: user_id, last_active_at: new Date().toISOString() })
     .eq('device_token', session.deviceToken);
+
+  // キャッシュを無効化（次回リクエストで新しいユーザー情報を取得）
+  invalidateSessionCache(session.deviceToken);
 
   return Response.json({ user_id: user.id, user_name: user.name });
 }

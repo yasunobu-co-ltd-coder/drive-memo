@@ -134,7 +134,7 @@ export default function AdminDashboard() {
 
   // ─── パスワード変更 ───
   async function changePassword(companyId: string) {
-    if (!newPw || newPw.length < 4) { setPwMsg('4文字以上で入力してください'); return; }
+    if (!newPw || newPw.length < 8) { setPwMsg('8文字以上で入力してください'); return; }
     const res = await fetch(`/api/admin/companies/${companyId}`, {
       method: 'PATCH',
       headers: headers(),
@@ -412,7 +412,7 @@ export default function AdminDashboard() {
                         style={{ width: '100%', fontSize: 16, padding: '12px 44px 12px 14px', boxSizing: 'border-box' }}
                         value={newPw}
                         onChange={e => setNewPw(e.target.value)}
-                        placeholder="新しいパスワード（4文字以上）"
+                        placeholder="新しいパスワード（8文字以上）"
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); changePassword(c.id); } }}
                       />
                       <button

@@ -304,13 +304,14 @@ export async function disconnect(userId: string): Promise<void> {
     .eq('user_id', userId)
     .single();
 
-  if (token) {
-    // Google側でトークンをrevoke（失敗しても無視）
-    fetch(`https://oauth2.googleapis.com/revoke?token=${token.access_token}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    }).catch(() => {});
-  }
-
-  await db.from('google_tokens').delete().eq('user_id', userId);
+  // Google側でトークンをrevoke（失敗しても無視）+ DB削除を並列実行して完走を保証
+  await Promise.all([
+    token
+      ? fetch(`https://oauth2.googleapis.com/revoke?token=${token.access_token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        }).catch(() => {})
+      : Promise.resolve(),
+    db.from('google_tokens').delete().eq('user_id', userId),
+  ]);
 }

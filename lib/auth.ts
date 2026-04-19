@@ -1,6 +1,7 @@
 // ============================================================
 // drive v2 — 認証ユーティリティ（サーバーサイド専用）
 // ============================================================
+import { after } from 'next/server';
 import { createServerClient } from './supabase-server';
 
 export const DEVICE_TOKEN_HEADER = 'x-device-token';
@@ -24,16 +25,30 @@ export async function validateRequest(request: Request): Promise<DeviceSession |
   return validateToken(token);
 }
 
-/**
- * device_token を検証してセッション情報を返す。
- * JOINで1クエリに最適化（device_registrations → companies, users）。
- * ※ last_user_id に FK制約が必要（20260408_011_performance_indexes.sql）
- * FK未設定の場合はフォールバックで並列取得。
- */
 // deviceTokenの有効期限（最終アクセスから30日）
 const TOKEN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
+// ─── 認証キャッシュ（DBアクセスを大幅に削減） ───
+type CachedSession = { session: DeviceSession; at: number };
+const sessionCache = new Map<string, CachedSession>();
+const SESSION_CACHE_TTL = 60 * 1000; // 60秒
+
+// last_active_at の更新間隔（頻繁な書き込みを抑制）
+const ACTIVE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5分
+const lastActiveUpdated = new Map<string, number>();
+
+/**
+ * device_token を検証してセッション情報を返す。
+ * 60秒間のインメモリキャッシュでDBアクセスを削減。
+ */
 export async function validateToken(token: string): Promise<DeviceSession | null> {
+  // キャッシュヒット → DBスキップ
+  const cached = sessionCache.get(token);
+  if (cached && Date.now() - cached.at < SESSION_CACHE_TTL) {
+    throttledActiveUpdate(token);
+    return cached.session;
+  }
+
   const db = createServerClient();
 
   // 1クエリでJOIN取得を試行
@@ -55,8 +70,10 @@ export async function validateToken(token: string): Promise<DeviceSession | null
   if (device.last_active_at) {
     const lastActive = new Date(device.last_active_at).getTime();
     if (Date.now() - lastActive > TOKEN_MAX_AGE_MS) {
-      // 期限切れトークンを削除
-      db.from('device_registrations').delete().eq('device_token', token).then(() => {});
+      after(async () => {
+        try { await db.from('device_registrations').delete().eq('device_token', token); } catch {}
+      });
+      sessionCache.delete(token);
       return null;
     }
   }
@@ -65,19 +82,40 @@ export async function validateToken(token: string): Promise<DeviceSession | null
   const userName    = (device as any).users?.name;
   if (!companyName || !userName) return null;
 
-  // last_active_at を非同期更新（スライディング有効期限）
-  db.from('device_registrations')
-    .update({ last_active_at: new Date().toISOString() })
-    .eq('device_token', token)
-    .then(() => {});
-
-  return {
+  const session: DeviceSession = {
     deviceToken: token,
     companyId:   device.company_id,
     companyName,
     userId:      device.last_user_id,
     userName,
   };
+
+  // キャッシュに保存
+  sessionCache.set(token, { session, at: Date.now() });
+  throttledActiveUpdate(token);
+
+  return session;
+}
+
+/** last_active_at の書き込みを5分に1回に間引く（レスポンス後にバックグラウンド実行） */
+function throttledActiveUpdate(token: string) {
+  const now = Date.now();
+  const last = lastActiveUpdated.get(token) ?? 0;
+  if (now - last < ACTIVE_UPDATE_INTERVAL) return;
+  lastActiveUpdated.set(token, now);
+  after(async () => {
+    try {
+      const db = createServerClient();
+      await db.from('device_registrations')
+        .update({ last_active_at: new Date().toISOString() })
+        .eq('device_token', token);
+    } catch {}
+  });
+}
+
+/** キャッシュ無効化（ユーザー切替時に呼ぶ） */
+export function invalidateSessionCache(token: string) {
+  sessionCache.delete(token);
 }
 
 /** FK未設定時のフォールバック（並列クエリ） */
@@ -96,7 +134,9 @@ async function validateTokenFallback(token: string): Promise<DeviceSession | nul
   if (device.last_active_at) {
     const lastActive = new Date(device.last_active_at).getTime();
     if (Date.now() - lastActive > TOKEN_MAX_AGE_MS) {
-      db.from('device_registrations').delete().eq('device_token', token).then(() => {});
+      after(async () => {
+        try { await db.from('device_registrations').delete().eq('device_token', token); } catch {}
+      });
       return null;
     }
   }
@@ -108,18 +148,19 @@ async function validateTokenFallback(token: string): Promise<DeviceSession | nul
 
   if (!companyRes.data || !userRes.data) return null;
 
-  db.from('device_registrations')
-    .update({ last_active_at: new Date().toISOString() })
-    .eq('device_token', token)
-    .then(() => {});
-
-  return {
+  const session: DeviceSession = {
     deviceToken: token,
     companyId:   device.company_id,
     companyName: companyRes.data.name,
     userId:      device.last_user_id,
     userName:    userRes.data.name,
   };
+
+  // フォールバックもキャッシュ
+  sessionCache.set(token, { session, at: Date.now() });
+  throttledActiveUpdate(token);
+
+  return session;
 }
 
 /**

@@ -29,17 +29,18 @@ export async function PATCH(
     if (typeof body.code !== 'string' || body.code.trim().length < 1) {
       return Response.json({ error: 'コードを入力してください' }, { status: 400 });
     }
+    const normalizedCode = body.code.trim().toUpperCase();
     // 重複チェック
     const { data: existing } = await db
       .from('companies')
       .select('id')
-      .eq('code', body.code.trim())
+      .eq('code', normalizedCode)
       .neq('id', id)
       .single();
     if (existing) {
       return Response.json({ error: 'このコードは既に使用されています' }, { status: 409 });
     }
-    updates.code = body.code.trim();
+    updates.code = normalizedCode;
   }
 
   if (Object.keys(updates).length === 0) {
