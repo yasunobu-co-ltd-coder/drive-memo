@@ -242,6 +242,8 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
 
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
+        // タブ切替などで既にアンマウント済みなら後続処理をスキップ（SR/state更新リーク防止）
+        if (!mountedRef.current) return;
         setRecording(false);
 
         const actualType = mr.mimeType || 'audio/webm';
@@ -256,15 +258,18 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         setDisplayText(prev => prev || '文字起こし中...');
         try {
           const whisperText = await transcribeWithWhisper(audioBlob);
+          if (!mountedRef.current) return;
           setDisplayText(whisperText);
           if (whisperText.trim()) {
             await parseWithAI(whisperText);
+            if (!mountedRef.current) return;
             startEditMode();
           } else {
             busyRef.current = false;
             startWakeListener();
           }
         } catch {
+          if (!mountedRef.current) return;
           setError('音声の文字起こしに失敗しました');
           setParsing(false);
           busyRef.current = false;
@@ -394,6 +399,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
       setDisplayText('');
       setSuccess(true);
       setTimeout(() => {
+        if (!mountedRef.current) return;
         setSuccess(false);
         // 登録完了後にウェイクワード待機に戻る
         startWakeListener();
