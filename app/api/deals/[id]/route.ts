@@ -41,11 +41,13 @@ export async function PATCH(
     return Response.json({ error: 'No fields to update' }, { status: 400 });
   }
 
+  // 同じ会社でも他ユーザーの案件は編集不可（作成者のみ編集可）
   const { data, error } = await db
     .from('deals')
     .update(updates)
     .eq('id', id)
     .eq('company_id', session.companyId)
+    .eq('created_by', session.userId)
     .select(FIELDS)
     .single();
 
@@ -93,19 +95,21 @@ export async function DELETE(
   const { id } = await params;
   const db = createServerClient();
 
-  // 削除前にカレンダーイベントIDを取得
+  // 削除前にカレンダーイベントIDを取得（作成者のみ削除可）
   const { data: deal } = await db
     .from('deals')
     .select('google_event_id, created_by')
     .eq('id', id)
     .eq('company_id', session.companyId)
+    .eq('created_by', session.userId)
     .single();
 
   const { error } = await db
     .from('deals')
     .delete()
     .eq('id', id)
-    .eq('company_id', session.companyId);
+    .eq('company_id', session.companyId)
+    .eq('created_by', session.userId);
 
   if (error) return Response.json({ error: '案件の削除に失敗しました' }, { status: 500 });
 
