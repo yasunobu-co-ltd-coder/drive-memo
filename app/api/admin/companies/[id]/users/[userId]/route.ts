@@ -4,6 +4,8 @@ import { NextRequest } from 'next/server';
 import { validateAdminRequest, adminUnauthorized } from '@/lib/admin-auth';
 import { createServerClient } from '@/lib/supabase-server';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; userId: string }> }
@@ -11,6 +13,10 @@ export async function DELETE(
   if (!validateAdminRequest(req)) return adminUnauthorized();
 
   const { id, userId } = await params;
+  // URL由来のIDを.or()に埋め込むためUUID形式を検証（PostgRESTフィルタDSL注入対策）
+  if (!UUID_RE.test(id) || !UUID_RE.test(userId)) {
+    return Response.json({ error: 'Invalid ID' }, { status: 400 });
+  }
   const db = createServerClient();
 
   // メモデータの有無を確認（created_by または assignee）
