@@ -6,6 +6,7 @@ type Props = {
   currentUserId: string;
   deviceToken: string;
   onCreated: () => void;
+  wakeWordEnabled: boolean;
 };
 
 type FormData = { client_name: string; contact_person: string; memo: string; due_date: string };
@@ -14,7 +15,7 @@ const INITIAL: FormData = { client_name: '', contact_person: '', memo: '', due_d
 // ウェイクワード
 const WAKE_WORDS = ['メモ', 'めも', 'memo'];
 
-export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
+export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled }: Props) {
   const [form, setForm]           = useState<FormData>(INITIAL);
   const [saving, setSaving]       = useState(false);
   const [recording, setRecording] = useState(false);
@@ -406,6 +407,8 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
 
   // ─── ウェイクワード待機 ───
   const startWakeListener = useCallback(() => {
+    // 設定でOFFならマイクを起動しない（権限確認ダイアログ・ピコ音を抑止）
+    if (!wakeWordEnabled) { setListening(false); return; }
     // 既に録音中・解析中・編集中なら開始しない
     if (busyRef.current) return;
 
@@ -461,7 +464,19 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     };
 
     r.start();
-  }, [startRecording]);
+  }, [startRecording, wakeWordEnabled]);
+
+  // 設定トグルのライブ反映：ONにしたら待機開始、OFFにしたら停止
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (wakeWordEnabled) {
+      if (!busyRef.current) startWakeListener();
+    } else {
+      wakeRef.current?.stop();
+      wakeRef.current = null;
+      setListening(false);
+    }
+  }, [wakeWordEnabled, startWakeListener]);
 
   function stopWakeListener() {
     wakeRef.current?.stop();

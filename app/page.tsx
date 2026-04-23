@@ -36,6 +36,21 @@ export default function Page() {
   const [syncing, setSyncing]               = useState(false);
   const [syncResult, setSyncResult]         = useState('');
   const [offline, setOffline]               = useState(false);
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(true);
+
+  // ─── ウェイクワード設定の読み込み（初回のみ） ───
+  useEffect(() => {
+    const v = localStorage.getItem('drive_wake_word_enabled');
+    if (v === 'false') setWakeWordEnabled(false);
+  }, []);
+
+  const toggleWakeWord = () => {
+    setWakeWordEnabled(v => {
+      const next = !v;
+      localStorage.setItem('drive_wake_word_enabled', next ? 'true' : 'false');
+      return next;
+    });
+  };
 
   // ─── ヘッダーの文字サイズ自動調整（hooks は早期returnの前に置く） ───
   const badgeRef = useRef<HTMLSpanElement>(null);
@@ -460,6 +475,40 @@ export default function Page() {
               </button>
             </div>
 
+            {/* 音声入力設定 */}
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: '#334155' }}>
+                音声入力設定
+              </div>
+              <label
+                htmlFor="wake-toggle"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 16px', background: '#f8fafc',
+                  borderRadius: 12, cursor: 'pointer',
+                }}
+              >
+                <div style={{ flex: 1, paddingRight: 12 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: '#0f172a' }}>
+                    音声待機（ウェイクワード）
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4, lineHeight: 1.5 }}>
+                    ONの時は「メモ」と言うと録音開始。OFFの時はマイクボタンをタップして録音開始（マイク起動音や権限確認が減ります）
+                  </div>
+                </div>
+                <input
+                  id="wake-toggle"
+                  type="checkbox"
+                  checked={wakeWordEnabled}
+                  onChange={toggleWakeWord}
+                  style={{
+                    width: 44, height: 26, cursor: 'pointer', flexShrink: 0,
+                    accentColor: '#2563eb',
+                  }}
+                />
+              </label>
+            </div>
+
             {/* Googleカレンダー連携 */}
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: '#334155', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -546,6 +595,7 @@ export default function Page() {
           currentUserId={session.userId}
           deviceToken={session.deviceToken}
           onCreated={onMemoCreated}
+          wakeWordEnabled={wakeWordEnabled}
         />
       )}
 
