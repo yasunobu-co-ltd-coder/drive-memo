@@ -31,15 +31,28 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
   // ウェイクワード待機
   const [listening, setListening]     = useState(false);
 
+  // 経過秒数（録音中に表示）
+  const [elapsed, setElapsed] = useState(0);
+
   // refs
-  const mediaRef    = useRef<MediaRecorder | null>(null);
-  const chunksRef   = useRef<Blob[]>([]);
-  const speechRef   = useRef<any>(null);
-  const cmdRef      = useRef<any>(null);
-  const wakeRef     = useRef<any>(null);
-  const formRef     = useRef<FormData>(INITIAL);
-  const busyRef     = useRef(false); // 録音中・解析中・編集中のフラグ
-  const mountedRef  = useRef(true);  // アンマウント検出用
+  const mediaRef     = useRef<MediaRecorder | null>(null);
+  const streamRef    = useRef<MediaStream | null>(null);      // チャンク間で使い回す
+  const mimeTypeRef  = useRef<string>('');                    // 同上
+  const speechRef    = useRef<any>(null);
+  const cmdRef       = useRef<any>(null);
+  const wakeRef      = useRef<any>(null);
+  const formRef      = useRef<FormData>(INITIAL);
+  const busyRef      = useRef(false); // 録音中・解析中・編集中のフラグ
+  const mountedRef   = useRef(true);  // アンマウント検出用
+
+  // ─── 長尺録音のためのチャンク管理 ───
+  const CHUNK_SECONDS = 180; // 3分ごとに区切る（iOS 128kbpsでも2.9MBで安全）
+  const stopReqRef    = useRef(false);                        // ユーザー停止要求フラグ
+  const chunkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chunkTextsRef = useRef<Array<string | null>>([]);     // 順番保持（nullは未完了）
+  const pendingRef    = useRef<Promise<void>[]>([]);          // 全チャンクの完了待ち
+  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startedAtRef  = useRef(0);
 
   useEffect(() => { formRef.current = form; }, [form]);
 
@@ -203,12 +216,12 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
       }
       setDisplayText(text);
 
-      // 「停止」「終了」で録音を停止
+      // 「停止」「終了」で録音を停止（セッション全体）
       const last = e.results[e.results.length - 1];
       if (last.isFinal) {
         const finalText = last[0].transcript.trim();
         if (/停止|ていし|終了|しゅうりょう|ストップ|おわり|終わり/.test(finalText)) {
-          mediaRef.current?.stop();
+          stopRecording();
           r.stop();
           speechRef.current = null;
         }
@@ -219,74 +232,168 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     r.start();
   }
 
-  // ─── 録音開始（共通処理） ───
+  // ─── 録音セッション全体の後処理 ───
+  const finalizeRecording = useCallback(async () => {
+    if (!mountedRef.current) return;
+    setRecording(false);
+
+    // ストリーム停止（全チャンク録音終了後）
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+
+    // 経過時間タイマー停止
+    if (elapsedTimerRef.current) {
+      clearInterval(elapsedTimerRef.current);
+      elapsedTimerRef.current = null;
+    }
+
+    // 全チャンクの文字起こし完了待ち
+    setParsing(true);
+    setDisplayText('文字起こし中...');
+    try {
+      await Promise.all(pendingRef.current);
+    } catch { /* 個別チャンクの失敗は下で処理 */ }
+
+    if (!mountedRef.current) return;
+    const fullText = chunkTextsRef.current
+      .map(t => t ?? '')
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!fullText) {
+      setParsing(false);
+      busyRef.current = false;
+      startWakeListener();
+      return;
+    }
+
+    setDisplayText(fullText);
+    try {
+      await parseWithAI(fullText);
+      if (!mountedRef.current) return;
+      startEditMode();
+    } catch {
+      if (!mountedRef.current) return;
+      setError('AI解析に失敗しました');
+      setParsing(false);
+      busyRef.current = false;
+      startWakeListener();
+    }
+  }, [parseWithAI, startEditMode]);
+
+  // ─── 1チャンク分のMediaRecorderを起動 ───
+  const startChunk = useCallback(() => {
+    const stream = streamRef.current;
+    if (!stream) return;
+
+    const mimeType = mimeTypeRef.current;
+    const mr = new MediaRecorder(
+      stream,
+      // 32kbpsはWhisperが音声認識するのに十分な品質。iOS Safariは無視する可能性あり
+      mimeType
+        ? { mimeType, audioBitsPerSecond: 32000 }
+        : { audioBitsPerSecond: 32000 },
+    );
+    mediaRef.current = mr;
+    const localChunks: Blob[] = [];
+    const idx = chunkTextsRef.current.length;
+    chunkTextsRef.current.push(null); // 順番確保用プレースホルダ
+
+    mr.ondataavailable = (e) => {
+      if (e.data.size > 0) localChunks.push(e.data);
+    };
+
+    mr.onstop = () => {
+      if (chunkTimerRef.current) {
+        clearTimeout(chunkTimerRef.current);
+        chunkTimerRef.current = null;
+      }
+
+      const actualType = mr.mimeType || 'audio/webm';
+      const blob = new Blob(localChunks, { type: actualType });
+
+      if (blob.size >= 1000) {
+        // 文字起こしをバックグラウンドで実行（次のチャンク録音を待たせない）
+        const p = transcribeWithWhisper(blob)
+          .then(text => { chunkTextsRef.current[idx] = text; })
+          .catch(() => { chunkTextsRef.current[idx] = ''; });
+        pendingRef.current.push(p);
+      } else {
+        chunkTextsRef.current[idx] = '';
+      }
+
+      // ユーザー停止済みなら最終処理、そうでなければ次のチャンクを開始
+      if (stopReqRef.current) {
+        finalizeRecording();
+      } else {
+        startChunk();
+      }
+    };
+
+    mr.start();
+    // CHUNK_SECONDS経過で自動ローテ
+    chunkTimerRef.current = setTimeout(() => {
+      if (mediaRef.current === mr && mr.state === 'recording' && !stopReqRef.current) {
+        mr.stop();
+      }
+    }, CHUNK_SECONDS * 1000);
+  }, [transcribeWithWhisper, finalizeRecording]);
+
+  // ─── 録音開始（チャンク分割対応） ───
   const startRecording = useCallback(async () => {
     busyRef.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
       // iOS Safari: audio/webm未対応 → audio/mp4を使用
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      mimeTypeRef.current = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm')
         ? 'audio/webm'
         : MediaRecorder.isTypeSupported('audio/mp4')
         ? 'audio/mp4'
         : '';
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      mediaRef.current = mr;
-      chunksRef.current = [];
 
-      mr.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      mr.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        // タブ切替などで既にアンマウント済みなら後続処理をスキップ（SR/state更新リーク防止）
-        if (!mountedRef.current) return;
-        setRecording(false);
-
-        const actualType = mr.mimeType || 'audio/webm';
-        const audioBlob = new Blob(chunksRef.current, { type: actualType });
-        if (audioBlob.size < 1000) {
-          busyRef.current = false;
-          startWakeListener();
-          return;
-        }
-
-        setParsing(true);
-        setDisplayText(prev => prev || '文字起こし中...');
-        try {
-          const whisperText = await transcribeWithWhisper(audioBlob);
-          if (!mountedRef.current) return;
-          setDisplayText(whisperText);
-          if (whisperText.trim()) {
-            await parseWithAI(whisperText);
-            if (!mountedRef.current) return;
-            startEditMode();
-          } else {
-            busyRef.current = false;
-            startWakeListener();
-          }
-        } catch {
-          if (!mountedRef.current) return;
-          setError('音声の文字起こしに失敗しました');
-          setParsing(false);
-          busyRef.current = false;
-          startWakeListener();
-        }
-      };
+      // セッション状態をリセット
+      stopReqRef.current      = false;
+      chunkTextsRef.current   = [];
+      pendingRef.current      = [];
 
       setDisplayText('');
       setError('');
       setRecording(true);
-      mr.start();
+      setElapsed(0);
+
+      // 経過時間タイマー（UI表示用）
+      startedAtRef.current = Date.now();
+      elapsedTimerRef.current = setInterval(() => {
+        if (mountedRef.current) {
+          setElapsed(Math.floor((Date.now() - startedAtRef.current) / 1000));
+        }
+      }, 1000);
+
+      startChunk();
       startSpeechPreview();
     } catch {
       setError('マイクの使用が許可されていません');
       busyRef.current = false;
     }
-  }, [transcribeWithWhisper, parseWithAI, startEditMode]);
+  }, [startChunk]);
+
+  // ─── ユーザーによる録音停止 ───
+  const stopRecording = useCallback(() => {
+    stopReqRef.current = true;
+    if (chunkTimerRef.current) {
+      clearTimeout(chunkTimerRef.current);
+      chunkTimerRef.current = null;
+    }
+    const mr = mediaRef.current;
+    if (mr && mr.state === 'recording') {
+      mr.stop(); // onstopでstopReqRef=true判定→finalize
+    }
+  }, []);
 
   // ─── ウェイクワード待機 ───
   const startWakeListener = useCallback(() => {
@@ -363,9 +470,14 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     return () => {
       mountedRef.current = false;
       clearTimeout(timer);
+      if (chunkTimerRef.current)   { clearTimeout(chunkTimerRef.current);    chunkTimerRef.current = null; }
+      if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
+      stopReqRef.current = true;
       wakeRef.current?.stop();
       wakeRef.current = null;
-      mediaRef.current?.stop();
+      try { mediaRef.current?.stop(); } catch {}
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
       speechRef.current?.stop?.();
       cmdRef.current?.stop?.();
       cmdRef.current = null;
@@ -420,7 +532,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     }
 
     if (recording) {
-      mediaRef.current?.stop();
+      stopRecording();
       speechRef.current?.stop();
       speechRef.current = null;
       return;
@@ -429,7 +541,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     // 待機中 → 録音開始
     stopWakeListener();
     startRecording();
-  }, [recording, parsing, correcting, editMode, startRecording, startWakeListener]);
+  }, [recording, parsing, correcting, editMode, startRecording, stopRecording, startWakeListener]);
 
   // ─── ボタン表示 ───
   const micBg = editMode ? '#10b981'
@@ -445,11 +557,12 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
     : listening
     ? '0 0 0 14px rgba(99,102,241,.15), 0 6px 20px rgba(99,102,241,.3)'
     : '0 6px 24px rgba(37,99,235,.38)';
+  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const micLabel = editMode
     ? '音声で修正できます'
     : correcting ? '修正を反映中...'
     : parsing ? 'Whisper解析中...'
-    : recording ? '録音中… タップで停止'
+    : recording ? `録音中 ${mmss(elapsed)} … タップで停止`
     : listening ? '「メモ」と言うと録音開始'
     : 'タップで音声入力';
 
