@@ -7,6 +7,9 @@ import { createServerClient } from '@/lib/supabase-server';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import OpenAI from 'openai';
 
+// Vercel Proで30秒まで拡張（LLM応答の揺らぎ対策）
+export const maxDuration = 30;
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // 会社ごとのキャッシュ

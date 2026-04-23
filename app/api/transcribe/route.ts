@@ -6,6 +6,10 @@ import { createServerClient } from '@/lib/supabase-server';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import OpenAI from 'openai';
 
+// Vercel Pro: 関数実行時間を60秒まで拡張（Hobbyでは無視される）
+// これにより15〜20分の音声でもWhisperがタイムアウトせずに処理できる
+export const maxDuration = 60;
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB

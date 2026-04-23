@@ -4,6 +4,9 @@ import { validateRequest, unauthorizedResponse } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
 import { getAccessToken, getCalendarId } from '@/lib/google-calendar';
 
+// Vercel Proで30秒まで拡張（25件の並列カレンダー登録の余裕マージン）
+export const maxDuration = 30;
+
 const CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 
 // 期日の予定は当日8:00〜8:30 JST、開始時刻ぴったりに通知
@@ -57,7 +60,7 @@ export async function POST(req: NextRequest) {
   const db = createServerClient();
 
   // 期日あり & google_event_id未設定 & 未完了の案件を取得
-  // Vercel Hobbyの10秒タイムアウト内に収まるよう上限を25件に抑える
+  // Vercel Proの30秒タイムアウト + 並列処理で50件でも余裕あり
   const { data: deals, error } = await db
     .from('deals')
     .select('id, client_name, contact_person, memo, due_date')
@@ -66,7 +69,7 @@ export async function POST(req: NextRequest) {
     .not('due_date', 'is', null)
     .is('google_event_id', null)
     .neq('status', 'done')
-    .limit(25);
+    .limit(50);
 
   if (error) return Response.json({ error: 'カレンダー同期に失敗しました' }, { status: 500 });
 
