@@ -1,4 +1,5 @@
-// POST /api/transcribe — 音声ファイルをテキストに変換（OpenAI Whisper）
+// POST /api/transcribe — 音声ファイルをテキストに変換
+// 優先: Groq (Whisper Large v3 Turbo) → 失敗時: OpenAI (whisper-1)
 // 過去の取引先名をプロンプトに含めて固有名詞の精度を上げる
 import { NextRequest } from 'next/server';
 import { validateRequest, unauthorizedResponse } from '@/lib/auth';
@@ -9,6 +10,15 @@ import OpenAI from 'openai';
 // Vercel Pro: 関数実行時間を60秒まで拡張（Hobbyでは無視される）
 // これにより15〜20分の音声でもWhisperがタイムアウトせずに処理できる
 export const maxDuration = 60;
+
+// Groq（OpenAI互換API）— 最新のWhisper Large v3、高速・安価・高精度
+// GROQ_API_KEYが未設定なら常にOpenAIを使用
+const groq = process.env.GROQ_API_KEY
+  ? new OpenAI({
+      apiKey:  process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    })
+  : null;
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -83,12 +93,54 @@ export async function POST(req: NextRequest) {
     prompt += `担当者は${contacts.slice(0, 15).join('、')}。`;
   }
 
-  const transcription = await openai.audio.transcriptions.create({
+  // Groq → OpenAI のフォールバック
+  // Groq側のレート超過(429) / サーバーエラー(5xx) / ネットワークエラーでOpenAIに切り替え
+  // 4xxクライアントエラー(不正ファイル等)は切り替えても同じなのでそのまま返す
+  const text = await transcribeWithFallback(file, prompt);
+  return Response.json({ text });
+}
+
+async function transcribeWithFallback(file: File, prompt: string): Promise<string> {
+  // Groqのprompt上限は224トークン(OpenAIより厳しい)なので短めに
+  const groqPrompt   = prompt.slice(0, 200);
+  const openaiPrompt = prompt.slice(0, 500);
+
+  if (groq) {
+    try {
+      const res = await groq.audio.transcriptions.create({
+        file,
+        model:    'whisper-large-v3-turbo',
+        language: 'ja',
+        prompt:   groqPrompt,
+      });
+      return res.text ?? '';
+    } catch (err: unknown) {
+      if (!shouldFallback(err)) throw err;
+      console.warn('[transcribe] Groq failed, falling back to OpenAI:', getErrStatus(err));
+    }
+  }
+
+  const res = await openai.audio.transcriptions.create({
     file,
     model:    'whisper-1',
     language: 'ja',
-    prompt:   prompt.slice(0, 500),
+    prompt:   openaiPrompt,
   });
+  return res.text ?? '';
+}
 
-  return Response.json({ text: transcription.text });
+function getErrStatus(err: unknown): number {
+  const e = err as { status?: number };
+  return e?.status ?? 0;
+}
+
+function shouldFallback(err: unknown): boolean {
+  const status = getErrStatus(err);
+  // レート超過・サーバー障害・ネットワーク(statusなし)はフォールバック対象
+  // 401/403は設定ミスなのでフォールバックで救うべき(キーがおかしいだけかも)
+  if (status === 0)                     return true;   // ネットワーク/SDKレベルのエラー
+  if (status === 429)                   return true;   // レート超過
+  if (status >= 500)                    return true;   // Groq側の障害
+  if (status === 401 || status === 403) return true;   // 認証エラーもOpenAIに逃がす
+  return false;
 }
