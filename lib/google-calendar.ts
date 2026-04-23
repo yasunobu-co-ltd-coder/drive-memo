@@ -11,6 +11,25 @@ const SCOPES = 'https://www.googleapis.com/auth/calendar';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 
+// 期日の予定をカレンダーに入れる時刻（JST）
+// 終日イベントだとGoogleがUTC解釈で前日通知になる問題があるため、
+// 時刻指定の短時間イベントに変更
+const EVENT_TIMEZONE   = 'Asia/Tokyo';
+const EVENT_START_HOUR = 8; // 8:00
+const EVENT_END_HOUR   = 8;
+const EVENT_END_MINUTE = 30; // 8:30
+
+/** YYYY-MM-DD から開始/終了のdateTime(ISO文字列)を作る */
+function buildEventTimes(due_date: string): { start: string; end: string } {
+  const sh = String(EVENT_START_HOUR).padStart(2, '0');
+  const eh = String(EVENT_END_HOUR).padStart(2, '0');
+  const em = String(EVENT_END_MINUTE).padStart(2, '0');
+  return {
+    start: `${due_date}T${sh}:00:00`,
+    end:   `${due_date}T${eh}:${em}:00`,
+  };
+}
+
 // ─── OAuth URL生成 ───
 export function getAuthUrl(state: string): string {
   const params = new URLSearchParams({
@@ -198,6 +217,7 @@ export async function createEvent(userId: string, deal: {
   if (deal.memo) descParts.push(`\n${deal.memo}`);
   descParts.push('\n\ndrive-memo');
 
+  const { start, end } = buildEventTimes(deal.due_date);
   const res = await fetch(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calId)}/events`, {
     method: 'POST',
     headers: {
@@ -207,11 +227,11 @@ export async function createEvent(userId: string, deal: {
     body: JSON.stringify({
       summary,
       description: descParts.join('') || undefined,
-      start: { date: deal.due_date },
-      end:   { date: deal.due_date },
+      start: { dateTime: start, timeZone: EVENT_TIMEZONE },
+      end:   { dateTime: end,   timeZone: EVENT_TIMEZONE },
       reminders: {
         useDefault: false,
-        overrides: [{ method: 'popup', minutes: 1440 }],
+        overrides: [{ method: 'popup', minutes: 0 }], // 開始時刻（当日8時JST）に通知
       },
     }),
   });
@@ -246,6 +266,7 @@ export async function updateEvent(userId: string, eventId: string, deal: {
   if (deal.memo) descParts.push(`\n${deal.memo}`);
   descParts.push('\n\ndrive-memo');
 
+  const { start, end } = buildEventTimes(deal.due_date);
   const res = await fetch(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calId)}/events/${eventId}`, {
     method: 'PUT',
     headers: {
@@ -255,11 +276,11 @@ export async function updateEvent(userId: string, eventId: string, deal: {
     body: JSON.stringify({
       summary,
       description: descParts.join('') || undefined,
-      start: { date: deal.due_date },
-      end:   { date: deal.due_date },
+      start: { dateTime: start, timeZone: EVENT_TIMEZONE },
+      end:   { dateTime: end,   timeZone: EVENT_TIMEZONE },
       reminders: {
         useDefault: false,
-        overrides: [{ method: 'popup', minutes: 1440 }],
+        overrides: [{ method: 'popup', minutes: 0 }], // 開始時刻（当日8時JST）に通知
       },
     }),
   });

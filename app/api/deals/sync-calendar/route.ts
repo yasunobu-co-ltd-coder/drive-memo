@@ -6,6 +6,11 @@ import { getAccessToken, getCalendarId } from '@/lib/google-calendar';
 
 const CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 
+// 期日の予定は当日8:00〜8:30 JST、開始時刻ぴったりに通知
+const EVENT_TIMEZONE = 'Asia/Tokyo';
+const EVENT_START = 'T08:00:00';
+const EVENT_END   = 'T08:30:00';
+
 type DealRow = {
   id: string;
   client_name: string;
@@ -26,9 +31,9 @@ async function createOneEvent(accessToken: string, calId: string, deal: DealRow)
     body: JSON.stringify({
       summary: deal.client_name || '案件',
       description: descParts.join('') || undefined,
-      start: { date: deal.due_date },
-      end:   { date: deal.due_date },
-      reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 1440 }] },
+      start: { dateTime: `${deal.due_date}${EVENT_START}`, timeZone: EVENT_TIMEZONE },
+      end:   { dateTime: `${deal.due_date}${EVENT_END}`,   timeZone: EVENT_TIMEZONE },
+      reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] },
     }),
   });
   if (!res.ok) return null;
