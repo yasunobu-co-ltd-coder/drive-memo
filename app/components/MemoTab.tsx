@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { Mic, Square, Loader, Volume2, Ear } from 'lucide-react';
 
 type Props = {
@@ -55,6 +55,15 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
   const startedAtRef  = useRef(0);
 
   useEffect(() => { formRef.current = form; }, [form]);
+
+  // メモ欄の高さを内容に応じて自動拡張
+  const memoRef = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = memoRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [form.memo]);
 
   function setField(k: keyof FormData, v: string) {
     setForm(f => ({ ...f, [k]: v }));
@@ -681,6 +690,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
         <div className="form-group">
           <label className="input-label" htmlFor="memo-text">メモ</label>
           <textarea
+            ref={memoRef}
             id="memo-text"
             name="memo"
             className="input-field"
@@ -688,6 +698,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated }: Props) {
             onChange={e => setField('memo', e.target.value)}
             placeholder={parsing ? '音声内容を解析しています...' : '案件の内容、連絡事項など...'}
             readOnly={parsing}
+            style={{ resize: 'none', overflow: 'hidden' }}
           />
         </div>
 

@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { RefreshCw, Pencil, Check, Undo2, Trash2, X, Search, ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { Deal } from '@/lib/types';
 
@@ -32,6 +32,15 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
   const [search, setSearch]     = useState('');
   const [sort, setSort]         = useState<SortKey>('due');
   const listRef = useRef<HTMLDivElement>(null);
+  const editMemoRef = useRef<HTMLTextAreaElement>(null);
+
+  // 編集モーダルのメモ欄を内容に応じて自動拡張
+  useLayoutEffect(() => {
+    const el = editMemoRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [editForm.memo, editing]);
 
   const fetchDeals = useCallback(async () => {
     setLoading(true);
@@ -401,10 +410,11 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
 
             <label htmlFor="edit-memo" style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>メモ</label>
             <textarea
+              ref={editMemoRef}
               id="edit-memo"
               name="memo"
               className="input-field"
-              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14, minHeight: 120, resize: 'vertical', boxSizing: 'border-box' }}
+              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14, minHeight: 120, resize: 'none', overflow: 'hidden', boxSizing: 'border-box' }}
               value={editForm.memo}
               onChange={e => setEditForm(f => ({ ...f, memo: e.target.value }))}
             />
