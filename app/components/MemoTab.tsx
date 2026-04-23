@@ -484,16 +484,11 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
     setListening(false);
   }
 
-  // ─── マウント時にウェイクワード待機を開始 ───
+  // ─── アンマウント時のクリーンアップ（真のunmountだけで実行） ───
   useEffect(() => {
-    // 少し遅延して開始（コンポーネント安定後）
-    const timer = setTimeout(() => {
-      if (!busyRef.current) startWakeListener();
-    }, 1000);
-
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      clearTimeout(timer);
       if (chunkTimerRef.current)   { clearTimeout(chunkTimerRef.current);    chunkTimerRef.current = null; }
       if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
       stopReqRef.current = true;
@@ -506,6 +501,14 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
       cmdRef.current?.stop?.();
       cmdRef.current = null;
     };
+  }, []);
+
+  // ─── マウント時にウェイクワード待機を開始（トグル変更で再実行OK） ───
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!busyRef.current) startWakeListener();
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [startWakeListener]);
 
   // ─── 登録完了後にウェイクワード待機に戻る ───
