@@ -58,6 +58,10 @@ export async function POST(req: NextRequest) {
   if (dueEndTime && !timeRe.test(dueEndTime)) {
     return Response.json({ error: '終了時刻の形式が不正です' }, { status: 400 });
   }
+  // 終了 ≤ 開始 のチェック（Googleカレンダーに弾かれる無言失敗を防ぐ）
+  if (dueStartTime && dueEndTime && dueEndTime <= dueStartTime) {
+    return Response.json({ error: '終了時刻は開始時刻より後にしてください' }, { status: 400 });
+  }
 
   const { data, error } = await db
     .from('deals')

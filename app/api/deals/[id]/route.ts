@@ -45,6 +45,14 @@ export async function PATCH(
     return Response.json({ error: 'No fields to update' }, { status: 400 });
   }
 
+  // 終了 ≤ 開始 のチェック（両方同時更新時のみ。片方だけ更新はDB側の既存値と不整合になる可能性があるが
+  // UI（編集モーダル・新規登録）は常に両方送るので実害なし）
+  const st = updates.due_start_time as string | null | undefined;
+  const et = updates.due_end_time   as string | null | undefined;
+  if (st && et && et <= st) {
+    return Response.json({ error: '終了時刻は開始時刻より後にしてください' }, { status: 400 });
+  }
+
   // 同じ会社でも他ユーザーの案件は編集不可（作成者のみ編集可）
   const { data, error } = await db
     .from('deals')

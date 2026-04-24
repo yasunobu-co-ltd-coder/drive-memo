@@ -32,6 +32,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
     due_date: '', due_start_time: '', due_end_time: '',
   });
   const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError]   = useState('');
   const [search, setSearch]     = useState('');
   const [sort, setSort]         = useState<SortKey>('due');
   const listRef = useRef<HTMLDivElement>(null);
@@ -98,6 +99,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
   async function saveEdit() {
     if (!editing || editSaving) return;
     setEditSaving(true);
+    setEditError('');
     try {
       const res = await fetch(`/api/deals/${editing.id}`, {
         method: 'PATCH',
@@ -108,7 +110,12 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
         const { deal: u } = await res.json();
         setDeals(ds => ds.map(d => d.id === editing.id ? u : d));
         setEditing(null);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setEditError(body.error ?? '保存に失敗しました');
       }
+    } catch {
+      setEditError('通信エラーが発生しました');
     } finally { setEditSaving(false); }
   }
 
@@ -138,11 +145,14 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
     .sort((a, b) => {
       if (sort === 'new') return b.created_at.localeCompare(a.created_at);
       if (sort === 'old') return a.created_at.localeCompare(b.created_at);
-      // due: 期限順（期限なしは末尾）
+      // due: 期限順（期限なしは末尾、同日は開始時刻順）
       if (!a.due_date && !b.due_date) return 0;
       if (!a.due_date) return 1;
       if (!b.due_date) return -1;
-      return a.due_date.localeCompare(b.due_date);
+      const byDate = a.due_date.localeCompare(b.due_date);
+      if (byDate !== 0) return byDate;
+      // 同じ日付: 開始時刻で並べる（時刻なしは先頭=朝8時想定扱い）
+      return (a.due_start_time ?? '08:00').localeCompare(b.due_start_time ?? '08:00');
     });
 
   return (
@@ -392,15 +402,16 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
 
       {/* 編集モーダル */}
       {editing && (
-        <div className="modal-overlay" onClick={() => setEditing(null)}>
+        <div className="modal-overlay" onClick={() => { setEditing(null); setEditError(''); }}>
           <div className="modal-sheet" onClick={e => e.stopPropagation()}>
             <div className="modal-handle" />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ fontSize: 20, fontWeight: 700 }}>案件を編集</div>
-              <button onClick={() => setEditing(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
+              <button onClick={() => { setEditing(null); setEditError(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
                 <X size={24} />
               </button>
             </div>
+            {editError && <div className="error-msg" style={{ marginBottom: 12 }}>{editError}</div>}
 
             <label htmlFor="edit-client" style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>会社名</label>
             <input

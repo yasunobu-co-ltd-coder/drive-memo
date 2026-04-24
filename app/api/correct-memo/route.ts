@@ -94,8 +94,27 @@ export async function POST(req: NextRequest) {
   });
 
   const raw = completion.choices[0]?.message?.content ?? '{}';
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   try {
-    const changes = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    // AIが返したフィールドだけを安全な型に絞ってサニタイズ
+    const changes: Record<string, string> = {};
+    const strKey = (k: string) => {
+      if (typeof parsed[k] === 'string') changes[k] = parsed[k];
+    };
+    strKey('client_name');
+    strKey('contact_person');
+    strKey('memo');
+    // 日付は YYYY-MM-DD または空文字のみ許可
+    if (typeof parsed.due_date === 'string' && (parsed.due_date === '' || DATE_RE.test(parsed.due_date))) {
+      changes.due_date = parsed.due_date;
+    }
+    // 時刻は HH:MM または空文字のみ許可（空文字=消去指示）
+    for (const k of ['due_start_time', 'due_end_time']) {
+      const v = parsed[k];
+      if (typeof v === 'string' && (v === '' || TIME_RE.test(v))) changes[k] = v;
+    }
     return Response.json({ changes });
   } catch {
     return Response.json({ changes: {} });
