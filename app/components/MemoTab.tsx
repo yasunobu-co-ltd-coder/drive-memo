@@ -1,6 +1,6 @@
 'use client';
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
-import { Mic, Square, Loader, Volume2, Ear, Mail, Sparkles, X } from 'lucide-react';
+import { Mic, Square, Loader, Volume2, Ear, Mail, Sparkles, X, RotateCcw } from 'lucide-react';
 
 type Props = {
   currentUserId: string;
@@ -576,6 +576,25 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
     finally { setSaving(false); }
   }, [form, deviceToken, currentUserId, onCreated, startWakeListener, saving]);
 
+  // ─── クリア（登録せずに全フィールドをリセット） ───
+  const handleReset = useCallback(() => {
+    const hasInput =
+      form.client_name || form.contact_person || form.memo ||
+      form.due_date || form.due_start_time || form.due_end_time || displayText;
+    if (!hasInput) return;
+    if (!confirm('入力内容をすべてクリアしますか？')) return;
+    // 録音・音声編集中なら停止
+    if (recording) {
+      stopRecording();
+      speechRef.current?.stop();
+      speechRef.current = null;
+    }
+    if (editMode) stopEditMode();
+    setForm(INITIAL);
+    setDisplayText('');
+    setError('');
+  }, [form, displayText, recording, editMode]);
+
   // ─── マイクタップ ───
   const handleMicClick = useCallback(async () => {
     if (parsing || correcting) return;
@@ -864,9 +883,33 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
           </div>
         </div>
 
-        <button id="memo-submit" className="primary-btn" type="submit" disabled={saving || parsing}>
-          {saving ? '登録中...' : '登録する'}
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={saving || parsing}
+            aria-label="入力内容をクリア"
+            style={{
+              padding: '14px 18px', borderRadius: 14,
+              border: '1.5px solid #e2e8f0', background: '#fff',
+              color: '#64748b', fontWeight: 700, fontSize: 16,
+              cursor: (saving || parsing) ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              flexShrink: 0, opacity: (saving || parsing) ? 0.5 : 1,
+            }}
+          >
+            <RotateCcw size={18} /> クリア
+          </button>
+          <button
+            id="memo-submit"
+            className="primary-btn"
+            type="submit"
+            disabled={saving || parsing}
+            style={{ flex: 1 }}
+          >
+            {saving ? '登録中...' : '登録する'}
+          </button>
+        </div>
       </form>
     </div>
   );

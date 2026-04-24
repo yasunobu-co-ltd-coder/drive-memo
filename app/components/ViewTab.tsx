@@ -80,7 +80,10 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
   async function deleteDeal(id: string) {
     if (!confirm('削除しますか？')) return;
     const res = await fetch(`/api/deals/${id}`, { method: 'DELETE', headers: { 'x-device-token': deviceToken } });
-    if (res.ok) setDeals(ds => ds.filter(d => d.id !== id));
+    if (res.ok) {
+      setDeals(ds => ds.filter(d => d.id !== id));
+      if (editing?.id === id) { setEditing(null); setEditError(''); }
+    }
   }
 
   function startEdit(deal: Deal) {
@@ -490,6 +493,21 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
                 opacity: editSaving ? 0.6 : 1,
               }}
             ><Check size={20} /> {editSaving ? '保存中...' : '保存'}</button>
+
+            {/* 削除（誤タップ防止のため区切って下に配置） */}
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+              <button
+                onClick={() => deleteDeal(editing.id)}
+                disabled={editSaving}
+                style={{
+                  width: '100%', padding: '13px', borderRadius: 12,
+                  border: '1.5px solid #fca5a5', background: '#fff',
+                  color: '#ef4444', fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  opacity: editSaving ? 0.5 : 1,
+                }}
+              ><Trash2 size={16} /> この案件を削除</button>
+            </div>
           </div>
         </div>
       )}
