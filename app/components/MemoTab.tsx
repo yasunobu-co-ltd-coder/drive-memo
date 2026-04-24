@@ -1,6 +1,6 @@
 'use client';
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
-import { Mic, Square, Loader, Volume2, Ear } from 'lucide-react';
+import { Mic, Square, Loader, Volume2, Ear, Mail, Sparkles, X } from 'lucide-react';
 
 type Props = {
   currentUserId: string;
@@ -34,6 +34,10 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
 
   // 経過秒数（録音中に表示）
   const [elapsed, setElapsed] = useState(0);
+
+  // メール/テキスト貼り付けモード
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasteText, setPasteText] = useState('');
 
   // refs
   const mediaRef     = useRef<MediaRecorder | null>(null);
@@ -109,6 +113,18 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
       setParsing(false);
     }
   }, [deviceToken]);
+
+  // ─── メール/テキスト貼り付けをAIで解析 ───
+  const handleParsePaste = useCallback(async () => {
+    const text = pasteText.trim();
+    if (!text || parsing) return;
+    setError('');
+    setDisplayText(text.slice(0, 80) + (text.length > 80 ? '…' : ''));
+    await parseWithAI(text);
+    // 成功時はペーストUIを閉じてフォームへ誘導
+    setPasteText('');
+    setShowPaste(false);
+  }, [pasteText, parsing, parseWithAI]);
 
   // ─── AI修正（音声編集モード） ───
   const correctWithAI = useCallback(async (instruction: string) => {
@@ -665,6 +681,79 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
             lineHeight: 1.6,
           }}>
             「{displayText}」
+          </div>
+        )}
+
+        {/* メール/テキストから作成 */}
+        {!recording && !editMode && !parsing && !correcting && (
+          <div style={{ marginTop: 18, width: '100%' }}>
+            {!showPaste ? (
+              <button
+                type="button"
+                onClick={() => setShowPaste(true)}
+                style={{
+                  width: '100%', padding: '12px 16px', borderRadius: 12,
+                  border: '1.5px dashed #cbd5e1', background: '#fafcff',
+                  color: '#64748b', fontWeight: 600, fontSize: 14,
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}
+              >
+                <Mail size={16} /> メール・テキストから作成
+              </button>
+            ) : (
+              <div style={{
+                padding: 14, borderRadius: 14,
+                border: '1.5px solid #e2e8f0', background: '#fafcff',
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginBottom: 10,
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    fontSize: 14, fontWeight: 700, color: '#334155',
+                  }}>
+                    <Mail size={16} /> メール・テキストから作成
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setShowPaste(false); setPasteText(''); }}
+                    style={{
+                      background: 'none', border: 'none', color: '#94a3b8',
+                      cursor: 'pointer', padding: 4,
+                    }}
+                  ><X size={18} /></button>
+                </div>
+                <textarea
+                  value={pasteText}
+                  onChange={e => setPasteText(e.target.value)}
+                  placeholder="メール本文や会話メモをここに貼り付けてください。AIが会社名・担当者・要点・期日を抽出します。"
+                  style={{
+                    width: '100%', minHeight: 120, padding: '12px 14px',
+                    borderRadius: 10, border: '1.5px solid #e2e8f0',
+                    fontSize: 15, lineHeight: 1.6, background: '#fff',
+                    boxSizing: 'border-box', resize: 'vertical', outline: 'none',
+                    fontFamily: 'inherit',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleParsePaste}
+                  disabled={!pasteText.trim() || parsing}
+                  style={{
+                    width: '100%', marginTop: 10, padding: '13px',
+                    borderRadius: 12, border: 'none',
+                    background: pasteText.trim() && !parsing ? '#2563eb' : '#cbd5e1',
+                    color: '#fff', fontWeight: 700, fontSize: 16,
+                    cursor: pasteText.trim() && !parsing ? 'pointer' : 'not-allowed',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}
+                >
+                  <Sparkles size={18} /> {parsing ? 'AI解析中...' : 'AIで解析してフォームに反映'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
