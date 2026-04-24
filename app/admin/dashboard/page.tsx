@@ -367,6 +367,9 @@ export default function AdminDashboard() {
                   )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input
+                      id={`change-code-${c.id}`}
+                      name="new_company_code"
+                      aria-label="新しい会社コード"
                       className="input-field"
                       style={{ flex: 1, fontSize: 16, padding: '12px 14px', boxSizing: 'border-box' }}
                       value={newCodeVal}
@@ -407,6 +410,9 @@ export default function AdminDashboard() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <div style={{ flex: 1, position: 'relative' }}>
                       <input
+                        id={`change-password-${c.id}`}
+                        name="new_password"
+                        aria-label="新しいパスワード"
                         type={showPw ? 'text' : 'password'}
                         className="input-field"
                         style={{ width: '100%', fontSize: 16, padding: '12px 44px 12px 14px', boxSizing: 'border-box' }}

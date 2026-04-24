@@ -538,10 +538,12 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
               onChange={e => setEditForm(f => ({ ...f, due_date: e.target.value }))}
             />
 
-            <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>時間（任意）</label>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
+            <div id="edit-time-group-label" style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>時間（任意）</div>
+            <div role="group" aria-labelledby="edit-time-group-label" style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
               <input
+                id="edit-start-time"
                 name="due_start_time"
+                aria-label="開始時刻"
                 className="input-field"
                 type="time"
                 style={{ flex: 1, fontSize: 16, padding: '12px 14px', boxSizing: 'border-box' }}
@@ -550,7 +552,9 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
               />
               <span style={{ color: '#94a3b8', fontSize: 18, fontWeight: 600 }}>〜</span>
               <input
+                id="edit-end-time"
                 name="due_end_time"
+                aria-label="終了時刻"
                 className="input-field"
                 type="time"
                 style={{ flex: 1, fontSize: 16, padding: '12px 14px', boxSizing: 'border-box' }}

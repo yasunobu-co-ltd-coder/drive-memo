@@ -762,6 +762,9 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
                   ><X size={18} /></button>
                 </div>
                 <textarea
+                  id="paste-memo-source"
+                  name="paste_text"
+                  aria-label="メール・テキスト本文"
                   value={pasteText}
                   onChange={e => setPasteText(e.target.value)}
                   placeholder="メール本文や会話メモをここに貼り付けてください。AIが会社名・担当者・要点・期日を抽出します。"
@@ -859,11 +862,12 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
         </div>
 
         <div className="form-group">
-          <label className="input-label">時間（任意）</label>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div id="memo-time-group-label" className="input-label">時間（任意）</div>
+          <div role="group" aria-labelledby="memo-time-group-label" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <input
               id="memo-start-time"
               name="due_start_time"
+              aria-label="開始時刻"
               className="input-field"
               type="time"
               style={{ flex: 1 }}
@@ -875,6 +879,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
             <input
               id="memo-end-time"
               name="due_end_time"
+              aria-label="終了時刻"
               className="input-field"
               type="time"
               style={{ flex: 1 }}
