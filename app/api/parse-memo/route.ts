@@ -62,6 +62,15 @@ export async function POST(req: NextRequest) {
   // 過去の取引先名・担当者名を取得
   const { clients, contacts } = await getKnownNames(session.companyId);
 
+  // 利用者本人の情報（メールの宛名や自社名として現れるため、除外のヒントとして渡す）
+  const selfContext =
+    `\n\n【テキストを送信/入力している利用者本人】\n` +
+    `- 氏名: ${session.userName}\n` +
+    `- 所属: ${session.companyName}\n` +
+    `入力テキスト中にこれらの名前（表記ゆれ含む: 姓のみ/名のみ/敬称付き等）が登場しても、` +
+    `それは利用者自身を指すので **client_name や contact_person に絶対に使わない**。` +
+    `もし入力テキストに本人以外の人名・社名が登場していれば、それが相手（取引先）である可能性が高い。`;
+
   let knownContext = '';
   if (clients.length > 0) {
     knownContext += `\n\n【登録済み取引先一覧】\n${clients.join('、')}\n音声テキスト内の会社名がこの一覧と一致または類似する場合、一覧の正式名称をそのまま使ってください。一致しない場合は音声テキストから新しい会社名として抽出してください。`;
@@ -90,7 +99,7 @@ export async function POST(req: NextRequest) {
   - メール/テキストの場合: 本文の要点だけを抽出。引用部分（「>」や「---Original---」以降）、定型の挨拶文、署名欄、免責事項は除外して、実質的な連絡事項のみを箇条書きに。
 - due_date: 期日。「明日」「来週月曜」「4月10日」「MM/DD」など日付の言及があればYYYY-MM-DD形式に変換。メールに明示的な期日がない場合や、言及がなければ今日の日付 "${today}" を入れてください。
 
-今日の日付は ${today} です。${knownContext}`,
+今日の日付は ${today} です。${selfContext}${knownContext}`,
       },
       { role: 'user', content: text },
     ],
