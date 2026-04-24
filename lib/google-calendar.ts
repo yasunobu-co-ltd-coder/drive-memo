@@ -14,19 +14,36 @@ const CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 // 期日の予定をカレンダーに入れる時刻（JST）
 // 終日イベントだとGoogleがUTC解釈で前日通知になる問題があるため、
 // 時刻指定の短時間イベントに変更
-const EVENT_TIMEZONE   = 'Asia/Tokyo';
-const EVENT_START_HOUR = 8; // 8:00
-const EVENT_END_HOUR   = 8;
-const EVENT_END_MINUTE = 30; // 8:30
+const EVENT_TIMEZONE = 'Asia/Tokyo';
+// 時刻指定なしの場合のデフォルト（朝8:00〜8:30の通知）
+const DEFAULT_START = '08:00';
+const DEFAULT_END   = '08:30';
 
-/** YYYY-MM-DD から開始/終了のdateTime(ISO文字列)を作る */
-function buildEventTimes(due_date: string): { start: string; end: string } {
-  const sh = String(EVENT_START_HOUR).padStart(2, '0');
-  const eh = String(EVENT_END_HOUR).padStart(2, '0');
-  const em = String(EVENT_END_MINUTE).padStart(2, '0');
+/** HH:MM に1時間加算。24時またぎで終了が翌日になる場合はその日の23:59に丸める */
+function addOneHour(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = h * 60 + m + 60;
+  if (total >= 24 * 60) return '23:59';
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/**
+ * YYYY-MM-DD と任意の開始/終了時刻(HH:MM)から ISO文字列の時間帯を作る
+ * - 両方指定: そのまま使用
+ * - 開始のみ: 終了は開始+1時間（24超えは23:59に丸め）
+ * - 両方なし: デフォルト 08:00-08:30
+ */
+function buildEventTimes(
+  due_date: string,
+  due_start_time?: string | null,
+  due_end_time?: string | null,
+): { start: string; end: string } {
+  const startT = due_start_time || DEFAULT_START;
+  const endT   = due_end_time
+    || (due_start_time ? addOneHour(due_start_time) : DEFAULT_END);
   return {
-    start: `${due_date}T${sh}:00:00`,
-    end:   `${due_date}T${eh}:${em}:00`,
+    start: `${due_date}T${startT}:00`,
+    end:   `${due_date}T${endT}:00`,
   };
 }
 
@@ -206,6 +223,8 @@ export async function createEvent(userId: string, deal: {
   contact_person: string;
   memo: string;
   due_date: string;
+  due_start_time?: string | null;
+  due_end_time?: string | null;
 }): Promise<string | null> {
   const accessToken = await getAccessToken(userId);
   if (!accessToken) return null;
@@ -217,7 +236,7 @@ export async function createEvent(userId: string, deal: {
   if (deal.memo) descParts.push(`\n${deal.memo}`);
   descParts.push('\n\ndrive-memo');
 
-  const { start, end } = buildEventTimes(deal.due_date);
+  const { start, end } = buildEventTimes(deal.due_date, deal.due_start_time, deal.due_end_time);
   const res = await fetch(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calId)}/events`, {
     method: 'POST',
     headers: {
@@ -231,7 +250,7 @@ export async function createEvent(userId: string, deal: {
       end:   { dateTime: end,   timeZone: EVENT_TIMEZONE },
       reminders: {
         useDefault: false,
-        overrides: [{ method: 'popup', minutes: 0 }], // 開始時刻（当日8時JST）に通知
+        overrides: [{ method: 'popup', minutes: 0 }], // 開始時刻ぴったりに通知
       },
     }),
   });
@@ -251,6 +270,8 @@ export async function updateEvent(userId: string, eventId: string, deal: {
   contact_person: string;
   memo: string;
   due_date: string | null;
+  due_start_time?: string | null;
+  due_end_time?: string | null;
 }): Promise<boolean> {
   if (!deal.due_date) {
     return deleteEvent(userId, eventId);
@@ -266,7 +287,7 @@ export async function updateEvent(userId: string, eventId: string, deal: {
   if (deal.memo) descParts.push(`\n${deal.memo}`);
   descParts.push('\n\ndrive-memo');
 
-  const { start, end } = buildEventTimes(deal.due_date);
+  const { start, end } = buildEventTimes(deal.due_date, deal.due_start_time, deal.due_end_time);
   const res = await fetch(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calId)}/events/${eventId}`, {
     method: 'PUT',
     headers: {
@@ -280,7 +301,7 @@ export async function updateEvent(userId: string, eventId: string, deal: {
       end:   { dateTime: end,   timeZone: EVENT_TIMEZONE },
       reminders: {
         useDefault: false,
-        overrides: [{ method: 'popup', minutes: 0 }], // 開始時刻（当日8時JST）に通知
+        overrides: [{ method: 'popup', minutes: 0 }], // 開始時刻ぴったりに通知
       },
     }),
   });

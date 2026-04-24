@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
 - 担当者: "${current?.contact_person ?? ''}"
 - メモ: "${current?.memo ?? ''}"
 - 期日: "${current?.due_date ?? ''}"
+- 開始時刻: "${current?.due_start_time ?? ''}"
+- 終了時刻: "${current?.due_end_time ?? ''}"
 
 今日の日付は ${today} です。
 
@@ -54,6 +56,7 @@ export async function POST(req: NextRequest) {
 - 「〜じゃなくて〜」「〜に変えて」「〜を修正」などの表現を解釈してください
 - 「追記して」「追加して」はメモの末尾に追加してください
 - 「期日は来週の金曜」など相対日付はYYYY-MM-DD形式に変換してください
+- 時刻の指示（「14時から」「午後3時まで」「14時〜16時」）は due_start_time / due_end_time をHH:MM（24時間）形式で返してください。時刻を消したい場合は空文字 "" を返してください
 
 ## 漢字の修正
 ユーザーは漢字の間違いを口頭で説明します。以下のようなパターンを理解してください:
@@ -77,10 +80,12 @@ export async function POST(req: NextRequest) {
 ## 出力形式
 変更するフィールドだけを含むJSONオブジェクト:
 {
-  "client_name": "新しい会社名",     // 変更する場合のみ
-  "contact_person": "新しい担当者",   // 変更する場合のみ
-  "memo": "新しいメモ",              // 変更する場合のみ
-  "due_date": "YYYY-MM-DD"            // 変更する場合のみ
+  "client_name": "新しい会社名",       // 変更する場合のみ
+  "contact_person": "新しい担当者",    // 変更する場合のみ
+  "memo": "新しいメモ",                // 変更する場合のみ
+  "due_date": "YYYY-MM-DD",             // 変更する場合のみ
+  "due_start_time": "HH:MM",            // 変更する場合のみ（空にする場合は ""）
+  "due_end_time": "HH:MM"               // 変更する場合のみ（空にする場合は ""）
 }
 変更がない場合は空オブジェクト {} を返してください。`,
       },

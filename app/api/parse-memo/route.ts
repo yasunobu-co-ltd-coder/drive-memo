@@ -98,6 +98,15 @@ export async function POST(req: NextRequest) {
   - 音声入力の場合: 口語を体言止めに変換。「見積書を送付します」→「- 見積書の提示」
   - メール/テキストの場合: 本文の要点だけを抽出。引用部分（「>」や「---Original---」以降）、定型の挨拶文、署名欄、免責事項は除外して、実質的な連絡事項のみを箇条書きに。
 - due_date: 期日。「明日」「来週月曜」「4月10日」「MM/DD」など日付の言及があればYYYY-MM-DD形式に変換。メールに明示的な期日がない場合や、言及がなければ今日の日付 "${today}" を入れてください。
+- due_start_time: 開始時刻。「HH:MM」形式（24時間、2桁0埋め）。
+  - 「14時」「14:00」「午後2時」→ "14:00"
+  - 「朝10時」→ "10:00"、「夜7時」→ "19:00"
+  - 「13時から」「14時〜」のように開始だけ言及されたらその時刻
+  - 時刻の明示がなければ空文字 ""
+- due_end_time: 終了時刻。「HH:MM」形式（24時間、2桁0埋め）。
+  - 「〜16時まで」「14時〜16時」→ "16:00"
+  - 「1時間」「30分」など所要時間だけ指定の場合はdue_start_timeにその時間を加算した値を入れる
+  - 終了の言及がなければ空文字 ""（カレンダー登録時は開始+1時間が自動設定される）
 
 今日の日付は ${today} です。${selfContext}${knownContext}`,
       },
@@ -106,13 +115,19 @@ export async function POST(req: NextRequest) {
   });
 
   const raw = completion.choices[0]?.message?.content ?? '{}';
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
   try {
     const parsed = JSON.parse(raw);
+    // 時刻は形式が正しい場合のみ返す
+    const st = typeof parsed.due_start_time === 'string' && TIME_RE.test(parsed.due_start_time) ? parsed.due_start_time : '';
+    const et = typeof parsed.due_end_time   === 'string' && TIME_RE.test(parsed.due_end_time)   ? parsed.due_end_time   : '';
     return Response.json({
       client_name: parsed.client_name ?? '',
       contact_person: parsed.contact_person ?? '',
       memo: parsed.memo ?? '',
       due_date: parsed.due_date ?? today,
+      due_start_time: st,
+      due_end_time: et,
     });
   } catch {
     return Response.json({ error: 'AI parse failed' }, { status: 500 });

@@ -27,7 +27,10 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
   const pullStartY              = useRef(0);
   const [pulling, setPulling]   = useState(false);
   const [editing, setEditing]   = useState<Deal | null>(null);
-  const [editForm, setEditForm] = useState({ client_name: '', contact_person: '', memo: '', due_date: '' });
+  const [editForm, setEditForm] = useState({
+    client_name: '', contact_person: '', memo: '',
+    due_date: '', due_start_time: '', due_end_time: '',
+  });
   const [editSaving, setEditSaving] = useState(false);
   const [search, setSearch]     = useState('');
   const [sort, setSort]         = useState<SortKey>('due');
@@ -86,6 +89,8 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
       contact_person: deal.contact_person ?? '',
       memo:           deal.memo ?? '',
       due_date:       deal.due_date ?? '',
+      due_start_time: deal.due_start_time ?? '',
+      due_end_time:   deal.due_end_time ?? '',
     });
     setExpanded(null);
   }
@@ -282,7 +287,16 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
                     background: isOverdue ? '#fee2e2' : '#f8fafc',
                     border: `1px solid ${isOverdue ? '#fca5a5' : '#e2e8f0'}`,
                     padding: '5px 12px', borderRadius: 8,
-                  }}>{due}</div>
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                    lineHeight: 1.2,
+                  }}>
+                    <span>{due}</span>
+                    {deal.due_start_time && (
+                      <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.85 }}>
+                        {deal.due_start_time}{deal.due_end_time ? `–${deal.due_end_time}` : ''}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -425,10 +439,34 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
               name="due_date"
               className="input-field"
               type="date"
-              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 20, boxSizing: 'border-box' }}
+              style={{ width: '100%', fontSize: 16, padding: '12px 14px', marginBottom: 14, boxSizing: 'border-box' }}
               value={editForm.due_date}
               onChange={e => setEditForm(f => ({ ...f, due_date: e.target.value }))}
             />
+
+            <label style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>時間（任意）</label>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
+              <input
+                name="due_start_time"
+                className="input-field"
+                type="time"
+                style={{ flex: 1, fontSize: 16, padding: '12px 14px', boxSizing: 'border-box' }}
+                value={editForm.due_start_time}
+                onChange={e => setEditForm(f => ({ ...f, due_start_time: e.target.value }))}
+              />
+              <span style={{ color: '#94a3b8', fontSize: 18, fontWeight: 600 }}>〜</span>
+              <input
+                name="due_end_time"
+                className="input-field"
+                type="time"
+                style={{ flex: 1, fontSize: 16, padding: '12px 14px', boxSizing: 'border-box' }}
+                value={editForm.due_end_time}
+                onChange={e => setEditForm(f => ({ ...f, due_end_time: e.target.value }))}
+              />
+            </div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 20, lineHeight: 1.5 }}>
+              未入力なら朝8:00通知。開始のみ入れると終了は+1時間。
+            </div>
 
             <button
               onClick={saveEdit}

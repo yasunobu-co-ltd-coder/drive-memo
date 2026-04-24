@@ -28,6 +28,8 @@ export type Deal = {
   contact_person: string;
   memo: string;
   due_date: string | null;
+  due_start_time: string | null;
+  due_end_time: string | null;
   importance: string;
   assignment_type: AssignmentType;
   assignee: string | null;

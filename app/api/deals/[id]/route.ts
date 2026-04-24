@@ -5,7 +5,7 @@ import { validateRequest, unauthorizedResponse } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
 import { createEvent, updateEvent, deleteEvent } from '@/lib/google-calendar';
 
-const FIELDS = 'id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, importance, assignment_type, assignee, status, google_event_id';
+const FIELDS = 'id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, due_start_time, due_end_time, importance, assignment_type, assignee, status, google_event_id';
 
 export async function PATCH(
   req: NextRequest,
@@ -21,16 +21,20 @@ export async function PATCH(
   // 送られたフィールドだけ更新（部分更新）+ バリデーション
   const MAX_LEN: Record<string, number> = { client_name: 200, contact_person: 100, memo: 5000 };
   const updates: Record<string, unknown> = {};
-  const allowed = ['client_name', 'contact_person', 'memo', 'due_date', 'importance', 'assignment_type', 'assignee', 'status'] as const;
+  const allowed = ['client_name', 'contact_person', 'memo', 'due_date', 'due_start_time', 'due_end_time', 'importance', 'assignment_type', 'assignee', 'status'] as const;
+  const NULLABLE = new Set(['due_date', 'assignee', 'due_start_time', 'due_end_time']);
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
   for (const key of allowed) {
     if (key in body) {
-      let val = (key === 'due_date' || key === 'assignee') ? (body[key] || null) : body[key];
+      let val = NULLABLE.has(key) ? (body[key] || null) : body[key];
       // 文字列長制限
       if (typeof val === 'string' && MAX_LEN[key]) {
         val = val.slice(0, MAX_LEN[key]);
       }
       // 期日フォーマット検証
       if (key === 'due_date' && val && !/^\d{4}-\d{2}-\d{2}$/.test(val)) continue;
+      // 時刻フォーマット検証
+      if ((key === 'due_start_time' || key === 'due_end_time') && val && !TIME_RE.test(val)) continue;
       // ステータス値制限
       if (key === 'status' && val !== '対応中' && val !== 'done') continue;
       updates[key] = val;
@@ -66,6 +70,8 @@ export async function PATCH(
             contact_person: data.contact_person,
             memo:           data.memo,
             due_date:       data.due_date,
+            due_start_time: data.due_start_time,
+            due_end_time:   data.due_end_time,
           });
         } else if (data.due_date && data.status !== 'done') {
           const eventId = await createEvent(session.userId, {
@@ -73,6 +79,8 @@ export async function PATCH(
             contact_person: data.contact_person,
             memo:           data.memo,
             due_date:       data.due_date,
+            due_start_time: data.due_start_time,
+            due_end_time:   data.due_end_time,
           });
           if (eventId) {
             await db.from('deals').update({ google_event_id: eventId }).eq('id', data.id);

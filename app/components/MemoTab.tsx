@@ -9,8 +9,18 @@ type Props = {
   wakeWordEnabled: boolean;
 };
 
-type FormData = { client_name: string; contact_person: string; memo: string; due_date: string };
-const INITIAL: FormData = { client_name: '', contact_person: '', memo: '', due_date: '' };
+type FormData = {
+  client_name: string;
+  contact_person: string;
+  memo: string;
+  due_date: string;
+  due_start_time: string;
+  due_end_time: string;
+};
+const INITIAL: FormData = {
+  client_name: '', contact_person: '', memo: '',
+  due_date: '', due_start_time: '', due_end_time: '',
+};
 
 // ウェイクワード
 const WAKE_WORDS = ['メモ', 'めも', 'memo'];
@@ -102,10 +112,12 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
       if (!res.ok) throw new Error('parse failed');
       const parsed = await res.json();
       setForm({
-        client_name:    parsed.client_name    || '',
-        contact_person: parsed.contact_person || '',
-        memo:           parsed.memo           || '',
-        due_date:       parsed.due_date       || '',
+        client_name:    parsed.client_name     || '',
+        contact_person: parsed.contact_person  || '',
+        memo:           parsed.memo            || '',
+        due_date:       parsed.due_date        || '',
+        due_start_time: parsed.due_start_time  || '',
+        due_end_time:   parsed.due_end_time    || '',
       });
     } catch {
       setForm(f => ({ ...f, memo: f.memo ? f.memo + '\n' + text : text }));
@@ -820,6 +832,36 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
             onChange={e => setField('due_date', e.target.value)}
             readOnly={parsing}
           />
+        </div>
+
+        <div className="form-group">
+          <label className="input-label">時間（任意）</label>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <input
+              id="memo-start-time"
+              name="due_start_time"
+              className="input-field"
+              type="time"
+              style={{ flex: 1 }}
+              value={form.due_start_time}
+              onChange={e => setField('due_start_time', e.target.value)}
+              readOnly={parsing}
+            />
+            <span style={{ color: '#94a3b8', fontSize: 18, fontWeight: 600 }}>〜</span>
+            <input
+              id="memo-end-time"
+              name="due_end_time"
+              className="input-field"
+              type="time"
+              style={{ flex: 1 }}
+              value={form.due_end_time}
+              onChange={e => setField('due_end_time', e.target.value)}
+              readOnly={parsing}
+            />
+          </div>
+          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6, lineHeight: 1.5 }}>
+            未入力なら朝8:00に通知。開始だけ入れると終了は自動で1時間後になります。
+          </div>
         </div>
 
         <button id="memo-submit" className="primary-btn" type="submit" disabled={saving || parsing}>

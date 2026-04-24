@@ -9,10 +9,10 @@ export const maxDuration = 30;
 
 const CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 
-// 期日の予定は当日8:00〜8:30 JST、開始時刻ぴったりに通知
+// 時刻指定がない場合のデフォルト（朝8:00〜8:30 JST、開始時刻ぴったりに通知）
 const EVENT_TIMEZONE = 'Asia/Tokyo';
-const EVENT_START = 'T08:00:00';
-const EVENT_END   = 'T08:30:00';
+const DEFAULT_START = '08:00';
+const DEFAULT_END   = '08:30';
 
 type DealRow = {
   id: string;
@@ -20,7 +20,16 @@ type DealRow = {
   contact_person: string;
   memo: string;
   due_date: string;
+  due_start_time: string | null;
+  due_end_time: string | null;
 };
+
+function addOneHour(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = h * 60 + m + 60;
+  if (total >= 24 * 60) return '23:59';
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
 
 async function createOneEvent(accessToken: string, calId: string, deal: DealRow): Promise<string | null> {
   const descParts: string[] = [];
@@ -28,14 +37,18 @@ async function createOneEvent(accessToken: string, calId: string, deal: DealRow)
   if (deal.memo) descParts.push(`\n${deal.memo}`);
   descParts.push('\n\ndrive-memo');
 
+  const startT = deal.due_start_time || DEFAULT_START;
+  const endT   = deal.due_end_time
+    || (deal.due_start_time ? addOneHour(deal.due_start_time) : DEFAULT_END);
+
   const res = await fetch(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calId)}/events`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       summary: deal.client_name || '案件',
       description: descParts.join('') || undefined,
-      start: { dateTime: `${deal.due_date}${EVENT_START}`, timeZone: EVENT_TIMEZONE },
-      end:   { dateTime: `${deal.due_date}${EVENT_END}`,   timeZone: EVENT_TIMEZONE },
+      start: { dateTime: `${deal.due_date}T${startT}:00`, timeZone: EVENT_TIMEZONE },
+      end:   { dateTime: `${deal.due_date}T${endT}:00`,   timeZone: EVENT_TIMEZONE },
       reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] },
     }),
   });
@@ -63,7 +76,7 @@ export async function POST(req: NextRequest) {
   // Vercel Proの30秒タイムアウト + 並列処理で50件でも余裕あり
   const { data: deals, error } = await db
     .from('deals')
-    .select('id, client_name, contact_person, memo, due_date')
+    .select('id, client_name, contact_person, memo, due_date, due_start_time, due_end_time')
     .eq('company_id', session.companyId)
     .eq('created_by', session.userId)
     .not('due_date', 'is', null)
