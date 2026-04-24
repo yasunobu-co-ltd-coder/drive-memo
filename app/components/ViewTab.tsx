@@ -109,7 +109,11 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
       setCalMessage({ id, text: '通信エラー', ok: false });
     } finally {
       setCalRegistering(null);
-      setTimeout(() => setCalMessage(cur => (cur?.id === id ? null : cur)), 2800);
+      // 成功は短く、失敗は長めに（エラー内容を読む時間を確保）
+      setTimeout(
+        () => setCalMessage(cur => (cur?.id === id ? null : cur)),
+        10000,
+      );
     }
   }
 
