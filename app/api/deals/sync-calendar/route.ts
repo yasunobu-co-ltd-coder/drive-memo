@@ -2,7 +2,7 @@
 import { NextRequest } from 'next/server';
 import { validateRequest, unauthorizedResponse } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
-import { getAccessToken, getCalendarId } from '@/lib/google-calendar';
+import { getAccessToken, getCalendarId, toHHMM } from '@/lib/google-calendar';
 
 // Vercel Proで30秒まで拡張（25件の並列カレンダー登録の余裕マージン）
 export const maxDuration = 30;
@@ -37,9 +37,12 @@ async function createOneEvent(accessToken: string, calId: string, deal: DealRow)
   if (deal.memo) descParts.push(`\n${deal.memo}`);
   descParts.push('\n\ndrive-memo');
 
-  const startT = deal.due_start_time || DEFAULT_START;
-  const endT   = deal.due_end_time
-    || (deal.due_start_time ? addOneHour(deal.due_start_time) : DEFAULT_END);
+  // DB の time 型は 'HH:MM:SS' で返るため HH:MM に正規化してから使う
+  const normStart = toHHMM(deal.due_start_time);
+  const normEnd   = toHHMM(deal.due_end_time);
+  const startT = normStart || DEFAULT_START;
+  const endT   = normEnd
+    || (normStart ? addOneHour(normStart) : DEFAULT_END);
 
   const res = await fetch(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calId)}/events`, {
     method: 'POST',

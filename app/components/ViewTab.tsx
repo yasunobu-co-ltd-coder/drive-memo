@@ -20,6 +20,13 @@ function fmtDate(d: string | null) {
   return `${m}/${day}`;
 }
 
+// DB の time 型は 'HH:MM:SS' で返るので 'HH:MM' に整える
+function fmtTime(t: string | null | undefined): string {
+  if (!t) return '';
+  const m = t.match(/^(\d{2}:\d{2})/);
+  return m ? m[1] : t;
+}
+
 export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserName, calConnected }: Props) {
   const [deals, setDeals]       = useState<Deal[]>([]);
   const [calRegistering, setCalRegistering] = useState<string | null>(null);
@@ -124,8 +131,8 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
       contact_person: deal.contact_person ?? '',
       memo:           deal.memo ?? '',
       due_date:       deal.due_date ?? '',
-      due_start_time: deal.due_start_time ?? '',
-      due_end_time:   deal.due_end_time ?? '',
+      due_start_time: fmtTime(deal.due_start_time),
+      due_end_time:   fmtTime(deal.due_end_time),
     });
     setExpanded(null);
   }
@@ -337,7 +344,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
                     <span>{due}</span>
                     {deal.due_start_time && (
                       <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.85 }}>
-                        {deal.due_start_time}{deal.due_end_time ? `–${deal.due_end_time}` : ''}
+                        {fmtTime(deal.due_start_time)}{deal.due_end_time ? `–${fmtTime(deal.due_end_time)}` : ''}
                       </span>
                     )}
                   </div>

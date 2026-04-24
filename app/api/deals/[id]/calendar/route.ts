@@ -6,7 +6,7 @@
 import { NextRequest } from 'next/server';
 import { validateRequest, unauthorizedResponse } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
-import { getAccessToken, getCalendarId } from '@/lib/google-calendar';
+import { getAccessToken, getCalendarId, toHHMM } from '@/lib/google-calendar';
 
 const CALENDAR_BASE  = 'https://www.googleapis.com/calendar/v3';
 const EVENT_TIMEZONE = 'Asia/Tokyo';
@@ -36,9 +36,12 @@ type CalCreateArgs = {
 };
 
 async function createEventRaw({ accessToken, calId, deal }: CalCreateArgs) {
-  const startT = deal.due_start_time || DEFAULT_START;
-  const endT   = deal.due_end_time
-    || (deal.due_start_time ? addOneHour(deal.due_start_time) : DEFAULT_END);
+  // DB の time 型は 'HH:MM:SS' で返るため HH:MM に正規化してから使う
+  const normStart = toHHMM(deal.due_start_time);
+  const normEnd   = toHHMM(deal.due_end_time);
+  const startT = normStart || DEFAULT_START;
+  const endT   = normEnd
+    || (normStart ? addOneHour(normStart) : DEFAULT_END);
 
   const descParts: string[] = [];
   if (deal.contact_person) descParts.push(`担当者: ${deal.contact_person}`);

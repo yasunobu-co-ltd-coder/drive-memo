@@ -19,6 +19,17 @@ const EVENT_TIMEZONE = 'Asia/Tokyo';
 const DEFAULT_START = '08:00';
 const DEFAULT_END   = '08:30';
 
+/**
+ * PostgreSQL の time 型は Supabase 経由で 'HH:MM:SS' で返ってくるため、
+ * 常に 'HH:MM' に正規化する。空値は null を返す。
+ */
+export function toHHMM(t: string | null | undefined): string | null {
+  if (!t) return null;
+  const m = t.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return `${m[1].padStart(2, '0')}:${m[2]}`;
+}
+
 /** HH:MM に1時間加算。24時またぎで終了が翌日になる場合はその日の23:59に丸める */
 function addOneHour(hhmm: string): string {
   const [h, m] = hhmm.split(':').map(Number);
@@ -28,19 +39,22 @@ function addOneHour(hhmm: string): string {
 }
 
 /**
- * YYYY-MM-DD と任意の開始/終了時刻(HH:MM)から ISO文字列の時間帯を作る
+ * YYYY-MM-DD と任意の開始/終了時刻から ISO文字列の時間帯を作る。
+ * DB の time 型は 'HH:MM:SS' で返るため、内部で必ず HH:MM に正規化してから使う。
  * - 両方指定: そのまま使用
  * - 開始のみ: 終了は開始+1時間（24超えは23:59に丸め）
  * - 両方なし: デフォルト 08:00-08:30
  */
-function buildEventTimes(
+export function buildEventTimes(
   due_date: string,
   due_start_time?: string | null,
   due_end_time?: string | null,
 ): { start: string; end: string } {
-  const startT = due_start_time || DEFAULT_START;
-  const endT   = due_end_time
-    || (due_start_time ? addOneHour(due_start_time) : DEFAULT_END);
+  const normStart = toHHMM(due_start_time);
+  const normEnd   = toHHMM(due_end_time);
+  const startT = normStart || DEFAULT_START;
+  const endT   = normEnd
+    || (normStart ? addOneHour(normStart) : DEFAULT_END);
   return {
     start: `${due_date}T${startT}:00`,
     end:   `${due_date}T${endT}:00`,
