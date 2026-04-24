@@ -1,12 +1,13 @@
 'use client';
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
-import { Mic, Square, Loader, Volume2, Ear, Mail, Sparkles, X, RotateCcw } from 'lucide-react';
+import { Mic, Square, Loader, Volume2, Ear, Mail, Sparkles, X, RotateCcw, Calendar } from 'lucide-react';
 
 type Props = {
   currentUserId: string;
   deviceToken: string;
   onCreated: () => void;
   wakeWordEnabled: boolean;
+  calConnected: boolean;
 };
 
 type FormData = {
@@ -25,8 +26,9 @@ const INITIAL: FormData = {
 // ウェイクワード
 const WAKE_WORDS = ['メモ', 'めも', 'memo'];
 
-export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled }: Props) {
+export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled, calConnected }: Props) {
   const [form, setForm]           = useState<FormData>(INITIAL);
+  const [registerToCalendar, setRegisterToCalendar] = useState(false);
   const [saving, setSaving]       = useState(false);
   const [recording, setRecording] = useState(false);
   const [parsing, setParsing]     = useState(false);
@@ -559,10 +561,12 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
           assignment_type: '自分で',
           assignee:        currentUserId,
           status:          '対応中',
+          register_to_calendar: registerToCalendar && !!form.due_date && calConnected,
         }),
       });
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '登録失敗'); return; }
       setForm(INITIAL);
+      setRegisterToCalendar(false);
       setDisplayText('');
       setSuccess(true);
       setTimeout(() => {
@@ -574,7 +578,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
       onCreated();
     } catch { setError('通信エラーが発生しました'); }
     finally { setSaving(false); }
-  }, [form, deviceToken, currentUserId, onCreated, startWakeListener, saving]);
+  }, [form, deviceToken, currentUserId, onCreated, startWakeListener, saving, registerToCalendar, calConnected]);
 
   // ─── クリア（登録せずに全フィールドをリセット） ───
   const handleReset = useCallback(() => {
@@ -591,6 +595,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
     }
     if (editMode) stopEditMode();
     setForm(INITIAL);
+    setRegisterToCalendar(false);
     setDisplayText('');
     setError('');
   }, [form, displayText, recording, editMode]);
@@ -882,6 +887,41 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
             未入力なら朝8:00に通知。開始だけ入れると終了は自動で1時間後になります。
           </div>
         </div>
+
+        {/* Googleカレンダー登録セクション（連携済みの時だけ表示） */}
+        {calConnected && (
+          <div style={{
+            marginBottom: 14, padding: '12px 14px',
+            background: '#fafcff', border: '1.5px solid #e2e8f0', borderRadius: 12,
+          }}>
+            <label
+              htmlFor="register-to-calendar"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                cursor: form.due_date ? 'pointer' : 'not-allowed',
+                opacity: form.due_date ? 1 : 0.55,
+              }}
+            >
+              <input
+                id="register-to-calendar"
+                type="checkbox"
+                checked={registerToCalendar && !!form.due_date}
+                disabled={!form.due_date}
+                onChange={e => setRegisterToCalendar(e.target.checked)}
+                style={{ width: 20, height: 20, accentColor: '#2563eb', flexShrink: 0 }}
+              />
+              <Calendar size={18} style={{ color: '#2563eb', flexShrink: 0 }} />
+              <span style={{ fontSize: 15, fontWeight: 600, color: '#334155' }}>
+                Googleカレンダーにも登録する
+              </span>
+            </label>
+            {!form.due_date && (
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6, paddingLeft: 30 }}>
+                期日を入力すると登録できます
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 10 }}>
           <button

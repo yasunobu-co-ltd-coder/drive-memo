@@ -83,8 +83,8 @@ export async function POST(req: NextRequest) {
 
   if (error) return Response.json({ error: '案件の登録に失敗しました' }, { status: 500 });
 
-  // Googleカレンダーに予定作成（レスポンス後にバックグラウンド実行）
-  if (data && data.due_date) {
+  // Googleカレンダーに予定作成（明示的に指定された時のみ・レスポンス後にバックグラウンド実行）
+  if (data && data.due_date && body.register_to_calendar === true) {
     after(async () => {
       try {
         const eventId = await createEvent(session.userId, {

@@ -308,6 +308,21 @@ export default function Page() {
     return () => { window.removeEventListener('offline', goOff); window.removeEventListener('online', goOn); };
   }, []);
 
+  // セッション確立後にカレンダー連携状態を取得（子コンポーネントに流すため）
+  useEffect(() => {
+    if (authState !== 'app' || !session) return;
+    let cancelled = false;
+    fetch('/api/auth/google/status', { headers: { 'x-device-token': session.deviceToken } })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (cancelled || !data) return;
+        setCalConnected(!!data.connected);
+        setCalEmail(data.email ?? '');
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [authState, session]);
+
   // モーダル表示時にbodyスクロールをロック（スマホでの背面スクロール防止）
   useEffect(() => {
     if (showUserSwitch) {
@@ -596,6 +611,7 @@ export default function Page() {
           deviceToken={session.deviceToken}
           onCreated={onMemoCreated}
           wakeWordEnabled={wakeWordEnabled}
+          calConnected={calConnected === true}
         />
       )}
 
@@ -605,6 +621,7 @@ export default function Page() {
           refreshSignal={refreshSignal}
           currentUserName={session.userName}
           onSwitchUser={() => { fetchUsersIfEmpty(); checkCalendarStatus(); setShowUserSwitch(true); }}
+          calConnected={calConnected === true}
         />
       )}
 

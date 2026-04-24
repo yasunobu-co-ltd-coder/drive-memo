@@ -3,7 +3,7 @@
 import { NextRequest, after } from 'next/server';
 import { validateRequest, unauthorizedResponse } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
-import { createEvent, updateEvent, deleteEvent } from '@/lib/google-calendar';
+import { updateEvent, deleteEvent } from '@/lib/google-calendar';
 
 const FIELDS = 'id, created_at, company_id, created_by, client_name, contact_person, memo, due_date, due_start_time, due_end_time, importance, assignment_type, assignee, status, google_event_id';
 
@@ -65,35 +65,20 @@ export async function PATCH(
 
   if (error) return Response.json({ error: '案件の更新に失敗しました' }, { status: 500 });
 
-  // Googleカレンダー同期（レスポンス後にバックグラウンド実行）
-  if (data) {
+  // Googleカレンダー同期：既に登録済みの案件だけ編集内容を反映する
+  // - 完了になってもイベントは削除しない（カレンダーに履歴を残す）
+  // - 未登録の案件は自動登録しない（履歴画面の「カレンダーに登録」ボタンから明示的に）
+  if (data && data.google_event_id) {
     after(async () => {
       try {
-        if (data.status === 'done' && data.google_event_id) {
-          await deleteEvent(session.userId, data.google_event_id);
-          await db.from('deals').update({ google_event_id: null }).eq('id', data.id);
-        } else if (data.google_event_id) {
-          await updateEvent(session.userId, data.google_event_id, {
-            client_name:    data.client_name,
-            contact_person: data.contact_person,
-            memo:           data.memo,
-            due_date:       data.due_date,
-            due_start_time: data.due_start_time,
-            due_end_time:   data.due_end_time,
-          });
-        } else if (data.due_date && data.status !== 'done') {
-          const eventId = await createEvent(session.userId, {
-            client_name:    data.client_name,
-            contact_person: data.contact_person,
-            memo:           data.memo,
-            due_date:       data.due_date,
-            due_start_time: data.due_start_time,
-            due_end_time:   data.due_end_time,
-          });
-          if (eventId) {
-            await db.from('deals').update({ google_event_id: eventId }).eq('id', data.id);
-          }
-        }
+        await updateEvent(session.userId, data.google_event_id as string, {
+          client_name:    data.client_name,
+          contact_person: data.contact_person,
+          memo:           data.memo,
+          due_date:       data.due_date,
+          due_start_time: data.due_start_time,
+          due_end_time:   data.due_end_time,
+        });
       } catch {}
     });
   }

@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { RefreshCw, Pencil, Check, Undo2, Trash2, X, Search, ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, Pencil, Check, Undo2, Trash2, X, Search, ArrowUpDown, ChevronDown, ChevronUp, Calendar, CalendarCheck } from 'lucide-react';
 import { Deal } from '@/lib/types';
 
 type Filter = 'active' | 'done';
@@ -11,6 +11,7 @@ type Props = {
   refreshSignal: number;
   onSwitchUser: () => void;
   currentUserName: string;
+  calConnected: boolean;
 };
 
 function fmtDate(d: string | null) {
@@ -19,8 +20,10 @@ function fmtDate(d: string | null) {
   return `${m}/${day}`;
 }
 
-export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserName }: Props) {
+export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserName, calConnected }: Props) {
   const [deals, setDeals]       = useState<Deal[]>([]);
+  const [calRegistering, setCalRegistering] = useState<string | null>(null);
+  const [calMessage, setCalMessage] = useState<{ id: string; text: string; ok: boolean } | null>(null);
   const [loading, setLoading]   = useState(true);
   const [filter, setFilter]     = useState<Filter>('active');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -83,6 +86,30 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
     if (res.ok) {
       setDeals(ds => ds.filter(d => d.id !== id));
       if (editing?.id === id) { setEditing(null); setEditError(''); }
+    }
+  }
+
+  async function registerCal(id: string) {
+    if (calRegistering) return;
+    setCalRegistering(id);
+    setCalMessage(null);
+    try {
+      const res = await fetch(`/api/deals/${id}/calendar`, {
+        method: 'POST',
+        headers: { 'x-device-token': deviceToken },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.deal) {
+        setDeals(ds => ds.map(d => d.id === id ? body.deal : d));
+        setCalMessage({ id, text: 'カレンダーに登録しました', ok: true });
+      } else {
+        setCalMessage({ id, text: body.error ?? '登録に失敗しました', ok: false });
+      }
+    } catch {
+      setCalMessage({ id, text: '通信エラー', ok: false });
+    } finally {
+      setCalRegistering(null);
+      setTimeout(() => setCalMessage(cur => (cur?.id === id ? null : cur)), 2800);
     }
   }
 
@@ -352,51 +379,93 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
 
               {/* アクションボタン */}
               {isOpen && (
-                <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
-                  {filter === 'active' ? (
-                    <>
+                <>
+                  <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
+                    {filter === 'active' ? (
+                      <>
+                        <button
+                          onClick={e => { e.stopPropagation(); updateStatus(deal.id, 'done'); }}
+                          style={{
+                            flex: 1, padding: '15px', borderRadius: 14,
+                            border: 'none', background: '#10b981', color: '#fff',
+                            fontWeight: 700, fontSize: 18, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          }}
+                        ><Check size={20} /> 完了</button>
+                        <button
+                          onClick={e => { e.stopPropagation(); startEdit(deal); }}
+                          style={{
+                            padding: '15px 18px', borderRadius: 14,
+                            border: '1.5px solid #e2e8f0', background: '#fff',
+                            color: '#2563eb', fontWeight: 700, fontSize: 18, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          }}
+                        ><Pencil size={18} /> 編集</button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={e => { e.stopPropagation(); updateStatus(deal.id, '対応中'); }}
+                          style={{
+                            flex: 1, padding: '15px', borderRadius: 14,
+                            border: 'none', background: '#2563eb', color: '#fff',
+                            fontWeight: 700, fontSize: 18, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          }}
+                        ><Undo2 size={20} /> 対応中に戻す</button>
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteDeal(deal.id); }}
+                          style={{
+                            padding: '15px 18px', borderRadius: 14,
+                            border: '1.5px solid #fca5a5', background: '#fff',
+                            color: '#ef4444', fontWeight: 700, fontSize: 18, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          }}
+                        ><Trash2 size={18} /> 削除</button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Googleカレンダー：登録ボタン or 登録済み表示 */}
+                  {calConnected && deal.due_date && (
+                    deal.google_event_id ? (
+                      <div style={{
+                        marginTop: 10, padding: '10px 12px', borderRadius: 10,
+                        background: '#ecfdf5', color: '#065f46',
+                        fontSize: 14, fontWeight: 600,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      }}>
+                        <CalendarCheck size={16} /> Googleカレンダー登録済み
+                      </div>
+                    ) : (
                       <button
-                        onClick={e => { e.stopPropagation(); updateStatus(deal.id, 'done'); }}
+                        onClick={e => { e.stopPropagation(); registerCal(deal.id); }}
+                        disabled={calRegistering === deal.id}
                         style={{
-                          flex: 1, padding: '15px', borderRadius: 14,
-                          border: 'none', background: '#10b981', color: '#fff',
-                          fontWeight: 700, fontSize: 18, cursor: 'pointer',
+                          width: '100%', marginTop: 10, padding: '12px', borderRadius: 12,
+                          border: '1.5px solid #93c5fd', background: '#eff6ff',
+                          color: '#1d4ed8', fontWeight: 700, fontSize: 15,
+                          cursor: calRegistering === deal.id ? 'wait' : 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          opacity: calRegistering === deal.id ? 0.6 : 1,
                         }}
-                      ><Check size={20} /> 完了</button>
-                      <button
-                        onClick={e => { e.stopPropagation(); startEdit(deal); }}
-                        style={{
-                          padding: '15px 18px', borderRadius: 14,
-                          border: '1.5px solid #e2e8f0', background: '#fff',
-                          color: '#2563eb', fontWeight: 700, fontSize: 18, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        }}
-                      ><Pencil size={18} /> 編集</button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={e => { e.stopPropagation(); updateStatus(deal.id, '対応中'); }}
-                        style={{
-                          flex: 1, padding: '15px', borderRadius: 14,
-                          border: 'none', background: '#2563eb', color: '#fff',
-                          fontWeight: 700, fontSize: 18, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        }}
-                      ><Undo2 size={20} /> 対応中に戻す</button>
-                      <button
-                        onClick={e => { e.stopPropagation(); deleteDeal(deal.id); }}
-                        style={{
-                          padding: '15px 18px', borderRadius: 14,
-                          border: '1.5px solid #fca5a5', background: '#fff',
-                          color: '#ef4444', fontWeight: 700, fontSize: 18, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        }}
-                      ><Trash2 size={18} /> 削除</button>
-                    </>
+                      >
+                        <Calendar size={16} />
+                        {calRegistering === deal.id ? '登録中...' : 'Googleカレンダーに登録'}
+                      </button>
+                    )
                   )}
-                </div>
+
+                  {/* 結果メッセージ */}
+                  {calMessage?.id === deal.id && (
+                    <div style={{
+                      marginTop: 8, padding: '8px 12px', borderRadius: 10,
+                      background: calMessage.ok ? '#ecfdf5' : '#fee2e2',
+                      color: calMessage.ok ? '#065f46' : '#991b1b',
+                      fontSize: 13, fontWeight: 600, textAlign: 'center',
+                    }}>{calMessage.text}</div>
+                  )}
+                </>
               )}
             </div>
           );
