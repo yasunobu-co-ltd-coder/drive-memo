@@ -249,8 +249,10 @@ export default function AdminDashboard() {
               <div className="form-group">
                 <label className="input-label" htmlFor="new-code">会社コード</label>
                 <input id="new-code" name="code" className="input-field"
-                  value={newCode} onChange={e => setNewCode(e.target.value.toUpperCase())}
-                  placeholder="ANSIN001" autoComplete="off" />
+                  value={newCode} onChange={e => setNewCode(e.target.value)}
+                  placeholder="ANSIN001" autoComplete="off"
+                  autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+                  style={{ textTransform: 'uppercase' }} />
               </div>
               <div className="form-group">
                 <label className="input-label" htmlFor="new-name">会社名</label>
@@ -371,9 +373,12 @@ export default function AdminDashboard() {
                       name="new_company_code"
                       aria-label="新しい会社コード"
                       className="input-field"
-                      style={{ flex: 1, fontSize: 16, padding: '12px 14px', boxSizing: 'border-box' }}
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      style={{ flex: 1, fontSize: 16, padding: '12px 14px', boxSizing: 'border-box', textTransform: 'uppercase' }}
                       value={newCodeVal}
-                      onChange={e => setNewCodeVal(e.target.value.toUpperCase())}
+                      onChange={e => setNewCodeVal(e.target.value)}
                       placeholder="新しいコード"
                       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); changeCode(c.id); } }}
                     />

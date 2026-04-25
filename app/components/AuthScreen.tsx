@@ -66,12 +66,13 @@ export function AuthScreen({ onSuccess }: Props) {
               className="input-field"
               type="text"
               value={code}
-              onChange={e => setCode(e.target.value.toUpperCase())}
+              onChange={e => setCode(e.target.value)}
               placeholder=""
-              autoCapitalize="none"
+              autoCapitalize="characters"
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
+              style={{ textTransform: 'uppercase' }}
             />
           </div>
 
