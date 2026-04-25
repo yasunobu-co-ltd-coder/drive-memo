@@ -156,7 +156,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
       if (Object.keys(changes).length > 0) {
         setForm(f => ({ ...f, ...changes }));
         const fields: Record<string, string> = {
-          client_name: '会社名', contact_person: '担当者', memo: 'メモ', due_date: '期日',
+          client_name: '相手方の会社名', contact_person: '相手方の担当者', memo: 'メモ', due_date: '期日',
         };
         const changed = Object.keys(changes).map(k => fields[k] || k).join('・');
         setEditStatus(`✓ ${changed}を修正しました`);
@@ -548,7 +548,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
     setError('');
     stopEditMode();
     if (!form.client_name.trim() && !form.memo.trim()) {
-      return setError('会社名またはメモを入力してください');
+      return setError('相手方の会社名またはメモを入力してください');
     }
     setSaving(true);
     try {
@@ -767,7 +767,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
                   aria-label="メール・テキスト本文"
                   value={pasteText}
                   onChange={e => setPasteText(e.target.value)}
-                  placeholder="メール本文や会話メモをここに貼り付けてください。AIが会社名・担当者・要点・期日を抽出します。"
+                  placeholder="メール本文や会話メモをここに貼り付けてください。AIが相手方の会社名・担当者・要点・期日を抽出します。"
                   style={{
                     width: '100%', minHeight: 120, padding: '12px 14px',
                     borderRadius: 10, border: '1.5px solid #e2e8f0',
@@ -808,7 +808,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
 
       <form onSubmit={handleSubmitAndResume}>
         <div className="form-group">
-          <label className="input-label" htmlFor="memo-client">会社名</label>
+          <label className="input-label" htmlFor="memo-client">相手方の会社名</label>
           <input
             id="memo-client"
             name="client_name"
@@ -821,7 +821,7 @@ export function MemoTab({ currentUserId, deviceToken, onCreated, wakeWordEnabled
         </div>
 
         <div className="form-group">
-          <label className="input-label" htmlFor="memo-contact">担当者</label>
+          <label className="input-label" htmlFor="memo-contact">相手方の担当者</label>
           <input
             id="memo-contact"
             name="contact_person"

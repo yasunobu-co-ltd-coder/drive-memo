@@ -329,7 +329,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}
               >
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', lineHeight: 1.3, flex: 1, overflowWrap: 'break-word' }}>
-                  {deal.client_name || '（会社名なし）'}
+                  {deal.client_name || '（相手方の会社名なし）'}
                 </div>
                 {due && (
                   <div style={{
@@ -496,7 +496,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
             </div>
             {editError && <div className="error-msg" style={{ marginBottom: 12 }}>{editError}</div>}
 
-            <label htmlFor="edit-client" style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>会社名</label>
+            <label htmlFor="edit-client" style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>相手方の会社名</label>
             <input
               id="edit-client"
               name="client_name"
@@ -506,7 +506,7 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
               onChange={e => setEditForm(f => ({ ...f, client_name: e.target.value }))}
             />
 
-            <label htmlFor="edit-contact" style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>担当者</label>
+            <label htmlFor="edit-contact" style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>相手方の担当者</label>
             <input
               id="edit-contact"
               name="contact_person"
