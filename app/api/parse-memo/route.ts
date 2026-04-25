@@ -74,9 +74,16 @@ export async function POST(req: NextRequest) {
     `自社名「${session.companyName}」と相手方の会社名は別物として扱うこと。` +
     `もし入力テキストに本人以外の人名・社名が登場していれば、それが相手（取引先）である可能性が高い。`;
 
+  // 自社名も既知の社名として参照リストに含める（表記ゆれの正規化用）。
+  // selfContext で「client_name には使わない」と明示済み。
+  const knownClients = [
+    session.companyName,
+    ...clients.filter(c => c !== session.companyName),
+  ];
+
   let knownContext = '';
-  if (clients.length > 0) {
-    knownContext += `\n\n【登録済み取引先一覧】\n${clients.join('、')}\n音声テキスト内の会社名がこの一覧と一致または類似する場合、一覧の正式名称をそのまま使ってください。一致しない場合は音声テキストから新しい会社名として抽出してください。`;
+  if (knownClients.length > 0) {
+    knownContext += `\n\n【登録済み社名一覧（自社含む）】\n${knownClients.join('、')}\n音声テキスト内の会社名がこの一覧と一致または類似する場合、一覧の正式表記をそのまま使ってください。ただし自社「${session.companyName}」は client_name には使わないこと。一覧にない会社名はテキストから新規抽出してください。`;
   }
   if (contacts.length > 0) {
     knownContext += `\n\n【登録済み担当者一覧】\n${contacts.join('、')}\n音声テキスト内の人名がこの一覧と一致または類似する場合、一覧の表記をそのまま使ってください。`;
