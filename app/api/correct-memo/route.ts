@@ -40,9 +40,16 @@ export async function POST(req: NextRequest) {
         content: `あなたは音声メモアプリの修正アシスタントです。
 ユーザーの修正指示を解釈して、フォームのどのフィールドをどう変更すべきか判断してください。
 
-現在のフォーム内容:
-- 会社名: "${current?.client_name ?? ''}"
-- 担当者: "${current?.contact_person ?? ''}"
+【利用者本人の情報】
+- 担当者名（自分）: ${session.userName}
+- 会社名（自社）: ${session.companyName}
+
+利用者本人を指す名前・自社名が修正指示に出てきても、client_name / contact_person には**絶対に入れない**。
+client_name は「相手方の会社名」、contact_person は「相手方の担当者名」。自社名「${session.companyName}」とは別物。
+
+現在のフォーム内容（client_name は相手方の会社名、contact_person は相手方の担当者名）:
+- 相手方の会社名: "${current?.client_name ?? ''}"
+- 相手方の担当者: "${current?.contact_person ?? ''}"
 - メモ: "${current?.memo ?? ''}"
 - 期日: "${current?.due_date ?? ''}"
 - 開始時刻: "${current?.due_start_time ?? ''}"
@@ -70,12 +77,13 @@ export async function POST(req: NextRequest) {
 - どのフィールドの漢字かは、文脈と現在のフォーム内容から推測する
   例：担当者が「赤城」なのに「木材の木です」→ 担当者を「赤木」に修正
 
-## 会社名の言い直し
-ユーザーが会社名を丸ごと言い直す場合があります:
+## 相手方の会社名の言い直し
+ユーザーが相手方の会社名を丸ごと言い直す場合があります:
 - 「会社名は岡山マティップ株式会社です」→ client_name を差し替え
 - 「岡山の会社です、岡山マティップです」→ client_name を「岡山マティップ」に
 - 「株式会社〇〇です」→ client_name を差し替え
 - 会社名っぽい固有名詞がそのまま言われたら client_name の修正と判断する
+- ただし自社名「${session.companyName}」が言われた場合は client_name に入れない（自社言及と判断）
 
 ## 出力形式
 変更するフィールドだけを含むJSONオブジェクト:
