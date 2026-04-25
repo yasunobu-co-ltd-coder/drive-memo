@@ -65,10 +65,24 @@ export async function PATCH(
 
   if (error) return Response.json({ error: '案件の更新に失敗しました' }, { status: 500 });
 
+  // 期日が削除されてカレンダーイベントが残っている場合：
+  // DB の google_event_id を即座にクリアしてレスポンスにも反映する。
+  // （Google 側の削除はバックグラウンドで実行）
+  let pendingCalDelete: string | null = null;
+  if (data && data.google_event_id && !data.due_date) {
+    pendingCalDelete = data.google_event_id as string;
+    await db.from('deals').update({ google_event_id: null }).eq('id', data.id);
+    data.google_event_id = null;
+  }
+
   // Googleカレンダー同期：既に登録済みの案件だけ編集内容を反映する
   // - 完了になってもイベントは削除しない（カレンダーに履歴を残す）
   // - 未登録の案件は自動登録しない（履歴画面の「カレンダーに登録」ボタンから明示的に）
-  if (data && data.google_event_id) {
+  if (pendingCalDelete) {
+    after(async () => {
+      try { await deleteEvent(session.userId, pendingCalDelete!); } catch {}
+    });
+  } else if (data && data.google_event_id) {
     after(async () => {
       try {
         await updateEvent(session.userId, data.google_event_id as string, {

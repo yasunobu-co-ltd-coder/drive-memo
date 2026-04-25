@@ -109,6 +109,10 @@ export function ViewTab({ deviceToken, refreshSignal, onSwitchUser, currentUserN
       if (res.ok && body.deal) {
         setDeals(ds => ds.map(d => d.id === id ? body.deal : d));
         setCalMessage({ id, text: 'カレンダーに登録しました', ok: true });
+      } else if (res.status === 409) {
+        // 既に登録済み（別端末で先に登録された等）→ 一覧を最新化してボタンを消す
+        await fetchDeals();
+        setCalMessage({ id, text: 'カレンダーに既に登録されていました', ok: true });
       } else {
         setCalMessage({ id, text: body.error ?? '登録に失敗しました', ok: false });
       }
